@@ -5,7 +5,7 @@
  - 前処理: ノッチ(50/60Hz), バンドパス, リサンプリング
  - 可視化: 時間波形, STFTスペクトログラム(縦軸狭め可), CWTスカログラム(帯域エネルギーCSV)
  - 解析: 帯域包絡(Hilbert), Welch PSD, 簡易特徴量
- - UI: 各解析に「説明」ボタン（popover→非対応時はexpander）
+ - UI: 各解析に「説明」ボタン（expander のみに変更）
 """
 
 from pathlib import Path
@@ -25,15 +25,10 @@ from scipy.signal import (
 # ---- ページ設定 ----
 st.set_page_config(page_title="Shunt Sound Analyzer - 完全版", layout="wide")
 
-# ---- UI小道具（popover→expander フォールバック） ----
+# ---- UI小道具（popover削除→expanderのみ） ----
 def explain_button(title: str, body_md: str):
-    try:
-        # Streamlit 1.34+ で使用可。無い場合 except 側へ
-        with st.popover(f"ℹ️ {title} の説明"):
-            st.markdown(body_md)
-    except Exception:
-        with st.expander(f"ℹ️ {title} の説明"):
-            st.markdown(body_md)
+    with st.expander(f"ℹ️ {title} の説明"):
+        st.markdown(body_md)
 
 # ---- DSP utilities ----
 def butter_bandpass(lowcut, highcut, fs, order=4):
@@ -71,6 +66,7 @@ def freqs_to_scales(freqs_hz, fs, wavelet_name="morl"):
     freqs_hz = np.asarray(freqs_hz, dtype=float)
     scales = fc * fs / np.maximum(freqs_hz, 1e-12)
     return scales
+
 
 # =============================================================================
 # サイドバー
@@ -363,4 +359,5 @@ st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 
 st.success("解析完了。必要に応じて各CSVをダウンロードしてください。")
 st.caption("ヒント：CWTはn_freqs（周波数分割）と解析長に比例して計算が重くなります。必要に応じて解析長の短縮・リサンプリングを活用してください。")
+
 
