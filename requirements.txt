@@ -1,19 +1,10 @@
-# ---- Core app ----
 streamlit==1.36.0
 pandas==2.2.2
 numpy==1.26.4
 scipy==1.11.4
 matplotlib==3.8.4
-
-# ---- Audio I/O & analysis ----
-soundfile==0.12.1          # aka python-soundfile
+soundfile==0.12.1
 librosa==0.10.2.post1
-PyWavelets==1.5.0          # CWT
-
-# ---- Video/Audio extraction ----
+PyWavelets==1.5.0
 moviepy==1.0.3
-imageio-ffmpeg==0.4.9      # 付属FFmpegバイナリ（外部FFmpegの代替にも）
-
-# ---- Librosa accel (ビルド通る環境なら推奨) ----
-numba==0.59.1
-llvmlite==0.42.0
+imageio-ffmpeg==0.4.9
