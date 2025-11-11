@@ -1,5 +1,0 @@
-[project]
-name = "shunt-audio-analyzer"
-version = "0.0.1"
-# ここが重要：uv/installer が Python 3.11 を選ぶよう制約
-requires-python = ">=3.11, <3.12"
