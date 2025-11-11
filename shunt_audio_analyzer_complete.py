@@ -1,35 +1,34 @@
 # -*- coding: utf-8 -*-
 """
-シャント音 解析ビューア 完全版
- - 入力: MP4/WAV など（MP4は音声抽出して解析）
+シャント音 解析ビューア 完全版（Cloud安定版）
+ - 入力: MP4/WAV など（MP4は音声抽出→解析）
  - 前処理: ノッチ(50/60Hz), バンドパス, リサンプリング
  - 可視化: 時間波形, STFTスペクトログラム(縦軸狭め可), CWTスカログラム(帯域エネルギーCSV)
- - 解析: 帯域包絡(Hilbert), Welch PSD, 特徴量
- - UI: 各解析に「説明」ポップアップ（可能なら）/ 折りたたみ説明
+ - 解析: 帯域包絡(Hilbert), Welch PSD, 簡易特徴量
+ - UI: 各解析に「説明」ボタン（popover→非対応時はexpander）
 """
 
-import io
-import os
 from pathlib import Path
-
+import tempfile
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import soundfile as sf
 import librosa
 import pywt
-
 import streamlit as st
-from scipy.signal import butter, filtfilt, iirnotch, welch, hilbert, get_window, stft as sp_stft, resample_poly
+from scipy.signal import (
+    butter, filtfilt, iirnotch, welch, hilbert,
+    get_window, stft as sp_stft, resample_poly
+)
 
 # ---- ページ設定 ----
 st.set_page_config(page_title="Shunt Sound Analyzer - 完全版", layout="wide")
 
-# ---- 小道具（説明UI：popover -> expander フォールバック） ----
+# ---- UI小道具（popover→expander フォールバック） ----
 def explain_button(title: str, body_md: str):
-    """できればポップオーバー。ダメならexpanderで説明を出す"""
     try:
-        # Streamlit >=1.34 で利用可。なければ exceptへ
+        # Streamlit 1.34+ で使用可。無い場合 except 側へ
         with st.popover(f"ℹ️ {title} の説明"):
             st.markdown(body_md)
     except Exception:
@@ -66,14 +65,16 @@ def band_envelope(x, fs, band, order=4):
     env = np.abs(hilbert(y))
     return y, env
 
-# ---- CWT helpers ----
+# ---- CWT helper ----
 def freqs_to_scales(freqs_hz, fs, wavelet_name="morl"):
     fc = pywt.central_frequency(wavelet_name)  # Morlet≈0.8125
     freqs_hz = np.asarray(freqs_hz, dtype=float)
     scales = fc * fs / np.maximum(freqs_hz, 1e-12)
     return scales
 
-# ---- サイドバー ----
+# =============================================================================
+# サイドバー
+# =============================================================================
 with st.sidebar:
     st.header("1) 音声の読み込み")
     up = st.file_uploader("WAV/MP3/FLAC/OGG/M4A/MP4", type=["wav","mp3","flac","ogg","m4a","mp4"])
@@ -85,7 +86,7 @@ with st.sidebar:
     notch_freq = st.selectbox("ノッチ周波数", [50, 60], index=0)
     notch_q = st.slider("ノッチQ（鋭さ）", 10, 60, 30)
     bp_low = st.number_input("バンドパス下限 [Hz]", 0.0, 5000.0, 20.0, 10.0)
-    bp_high = st.number_input("バンドパス上限 [Hz]", 50.0, 20000.0, 2000.0, 50.0)
+    bp_high = st.number_input("バンドパス上限 [Hz]", 50.0, 20000.0, 1200.0, 50.0)
     bp_order = st.slider("バンドパス次数", 2, 8, 4)
 
     st.header("3) STFTパラメータ")
@@ -100,7 +101,7 @@ with st.sidebar:
     wavelet = st.selectbox("ウェーブレット", ["morl", "cmor1.5-1.0", "cmor1.5-0.5", "mexh"], index=0)
     fmin = st.number_input("CWT下限周波数 [Hz]", 10.0, 5000.0, 30.0, 10.0)
     fmax = st.number_input("CWT上限周波数 [Hz]", 20.0, 20000.0, 1200.0, 10.0)
-    n_freqs = st.slider("周波数分割数", 32, 512, 192)
+    n_freqs = st.slider("周波数分割数", 32, 512, 128)  # 初期値やや軽め
 
     st.header("5) 帯域（包絡 & CWTエネルギー集計）")
     default_bands = [(150,300),(600,1200)]
@@ -120,46 +121,47 @@ with st.sidebar:
     st.header("6) 出力")
     export_csv = st.checkbox("CSV出力（帯域要約・時系列）", value=True)
 
-# ---- メイン ----
+# =============================================================================
+# メイン
+# =============================================================================
 st.title("シャント音 解析ビューア（STFT/CWT/帯域包絡/PSD）")
 
 if up is None:
     st.info("左のサイドバーから音声/動画ファイルをアップロードしてください。")
     st.stop()
 
-# ---- ロード／抽出 ----
-workdir = Path("./")
-tmp_wav = workdir / "_extracted_audio.wav"
+# ---- 一時ファイルは /tmp に保存（Cloud安全） ----
+TMP_DIR = Path(tempfile.gettempdir())
+tmp_input = TMP_DIR / ("_input_" + Path(up.name).name)
+tmp_wav   = TMP_DIR / "_extracted_audio.wav"
 
-def load_audio(file):
-    name = file.name.lower()
-    if name.endswith(".mp4"):
-        # MP4から抽出（16kHz mono）
-        from moviepy.editor import AudioFileClip
-        clip = AudioFileClip(file.name)  # 直接は不可なので一旦保存
-        # → ただしStreamlitのUploadedFileはファイルパスがないので、一時保存する
-    # ここは汎用に：一旦バイト保存→moviepy/librosaで読む
-    raw = file.read()
-    p = workdir / ("_input_" + Path(file.name).name)
-    with open(p, "wb") as f:
-        f.write(raw)
+# ---- 入力を保存 → 読み込み ----
+raw = up.read()
+tmp_input.write_bytes(raw)
 
-    if str(p).lower().endswith(".mp4"):
-        from moviepy.editor import AudioFileClip
-        clip = AudioFileClip(str(p))
-        clip.write_audiofile(str(tmp_wav), fps=16000, nbytes=2, ffmpeg_params=["-ac","1"])
-        clip.close()
-        y, sr = sf.read(str(tmp_wav))
-        if y.ndim == 2: y = y.mean(axis=1)
-        return y.astype(float), 16000, str(p)
+def load_audio_from_tmp(p: Path):
+    """tmp_input から y, sr を返す。MP4は moviepy → WAV 抽出。失敗時は librosa 直読みにフォールバック。"""
+    suf = p.suffix.lower()
+    if suf == ".mp4":
+        try:
+            from moviepy.editor import AudioFileClip
+            clip = AudioFileClip(str(p))
+            clip.write_audiofile(str(tmp_wav), fps=16000, nbytes=2, ffmpeg_params=["-ac","1"])
+            clip.close()
+            y, sr = sf.read(str(tmp_wav))
+            if y.ndim == 2: y = y.mean(axis=1)
+            return y.astype(float), 16000
+        except Exception as e:
+            st.warning(f"MP4からの抽出に失敗（{e}）。librosaで直接読みに切り替えます。")
+            y, sr = librosa.load(str(p), sr=None, mono=True)
+            return y.astype(float), int(sr)
     else:
-        # 音声ファイルをlibrosaで
         y, sr = librosa.load(str(p), sr=None, mono=True)
-        return y.astype(float), int(sr), str(p)
+        return y.astype(float), int(sr)
 
-y_raw, sr_raw, src_path = load_audio(up)
+y_raw, sr_raw = load_audio_from_tmp(tmp_input)
 
-# リサンプリング
+# ---- リサンプリング（解析用SRへ）----
 if sr_raw != target_sr:
     from math import gcd
     g = gcd(sr_raw, target_sr)
@@ -172,7 +174,7 @@ else:
 t = np.arange(len(y))/sr
 duration = len(y)/sr
 
-# 前処理
+# ---- 前処理 ----
 x_proc = y.copy()
 if use_notch:
     try:
@@ -181,7 +183,7 @@ if use_notch:
         st.warning("ノッチ除去に失敗しました（パラメータを確認）")
 x_proc = apply_bandpass(x_proc, sr, bp_low, bp_high, order=bp_order)
 
-# ---- 原波形／処理後波形 ----
+# ---- 時間波形 ----
 st.subheader("時間波形（原波形／前処理後）")
 explain_button("時間波形",
 """**何の解析？**  
@@ -191,12 +193,11 @@ explain_button("時間波形",
 ・全体のS/N、アーチファクト（触れ/衝撃音）  
 ・特定イベント（圧迫・姿勢変化・挙上試験）とのタイミング対応  
 """)
-
 fig, ax = plt.subplots(2,1,figsize=(11,4), constrained_layout=True)
 ax[0].plot(t, y, lw=0.7); ax[0].set_title(f"Original (sr={sr} Hz, {duration:.2f}s)")
 ax[1].plot(t, x_proc, lw=0.7); ax[1].set_title(f"Processed (Notch {notch_freq}Hz={use_notch}, BP {bp_low}-{bp_high} Hz)")
 for a in ax: a.set_xlabel("Time [s]"); a.set_ylabel("Amp")
-st.pyplot(fig)
+st.pyplot(fig); plt.close(fig)
 
 # ---- 帯域包絡（Hilbert） ----
 st.subheader("周波数帯域ごとの包絡（Hilbert）")
@@ -208,7 +209,6 @@ explain_button("帯域包絡（Hilbert）",
 ・狭窄/乱流で**高周波帯**の寄与が増えやすい  
 ・イベント（圧迫/挙上）前後の帯域エネルギー変化  
 """)
-
 env_df = pd.DataFrame({"time_s": t})
 summary_rows = []
 for (a,b) in bands:
@@ -225,19 +225,17 @@ for (a,b) in bands:
     except Exception as e:
         st.warning(f"帯域 {a}-{b} Hz でエラー: {e}")
 
-if len(env_df.columns)>1:
+if len(env_df.columns) > 1:
     fig2, ax2 = plt.subplots(figsize=(11,3.6))
     for c in env_df.columns:
         if c.endswith("_env"):
             ax2.plot(env_df["time_s"], env_df[c], lw=0.8, label=c.replace("_env",""))
     ax2.set_xlim(0,duration); ax2.set_xlabel("Time [s]"); ax2.set_ylabel("Envelope (a.u.)")
     ax2.legend(ncol=3, fontsize=8)
-    st.pyplot(fig2)
+    st.pyplot(fig2); plt.close(fig2)
+    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True)
 
-    summ_env = pd.DataFrame(summary_rows)
-    st.dataframe(summ_env, use_container_width=True)
-
-# ---- STFTスペクトログラム ----
+# ---- STFT ----
 st.subheader("STFTスペクトログラム（|X|）")
 explain_button("STFT（短時間フーリエ変換）",
 """**何の解析？**  
@@ -248,16 +246,15 @@ explain_button("STFT（短時間フーリエ変換）",
 ・**縦軸（周波数レンジ）を狭める**ことで目的帯域（例: 0–1.2kHz）を高解像に観察可能  
 **Tips:** n_fftを大きく→周波数分解能↑、hopを小さく→時間分解能↑  
 """)
-
 F_stft, TT_stft, S_stft = compute_stft(x_proc, sr, n_fft=n_fft, hop=hop, win=win)
 fig3, ax3 = plt.subplots(figsize=(11,3.8))
 im = ax3.pcolormesh(TT_stft, F_stft, S_stft, shading="auto")
 ax3.set_ylim(max(0, stft_fmin), min(sr/2, stft_fmax))
 ax3.set_xlabel("Time [s]"); ax3.set_ylabel("Frequency [Hz]")
 cb = fig3.colorbar(im, ax=ax3); cb.set_label("Amplitude")
-st.pyplot(fig3)
+st.pyplot(fig3); plt.close(fig3)
 
-# ---- CWTスカログラム & 帯域エネルギー ----
+# ---- CWT + 帯域エネルギー ----
 st.subheader("CWTスカログラム（連続ウェーブレット変換）＋帯域エネルギー")
 explain_button("CWT（連続ウェーブレット変換）",
 """**何の解析？**  
@@ -269,59 +266,57 @@ Morlet などのウェーブレットを使い、時間×周波数の**スカロ
 ・イベントの瞬間的変化の検出（STFTより敏感な場面あり）  
 **出力:** 指定帯域の**CWT帯域エネルギー時系列／要約CSV**  
 """)
-
-# CWT 計算（負荷が高いので軽量化可：対象長やn_freqsをサイドバーで制御）
 fmax_eff = min(fmax, sr/2 - 1)
 freqs = np.geomspace(max(1.0, fmin), fmax_eff, num=int(n_freqs))
 scales = freqs_to_scales(freqs, sr, wavelet_name=wavelet)
+try:
+    coef, _ = pywt.cwt(x_proc, scales, wavelet, sampling_period=1.0/sr)
+    power = (np.abs(coef))**2
+    fig4, ax4 = plt.subplots(figsize=(11,3.8))
+    im2 = ax4.pcolormesh(t, freqs, power, shading="auto")
+    ax4.set_yscale("log"); ax4.set_ylim(fmin, fmax_eff)
+    ax4.set_xlabel("Time [s]"); ax4.set_ylabel("Frequency [Hz]")
+    ax4.set_title(f"CWT Scalogram | {wavelet}")
+    cb2 = fig4.colorbar(im2, ax=ax4); cb2.set_label("Power")
+    st.pyplot(fig4); plt.close(fig4)
 
-coef, scales_used = pywt.cwt(x_proc, scales, wavelet, sampling_period=1.0/sr)
-power = (np.abs(coef))**2
+    cwt_band_df = pd.DataFrame({"time_s": t})
+    cwt_summary = []
+    for (a,b) in bands:
+        mask = (freqs >= max(a, fmin)) & (freqs <= min(b, fmax_eff))
+        if np.any(mask):
+            band_power = power[mask, :].mean(axis=0)  # 周波数方向に平均（和でもOK）
+            col = f"CWT_{int(a)}-{int(b)}Hz"
+            cwt_band_df[col] = band_power
+            cwt_summary.append({
+                "band_Hz": f"{int(a)}-{int(b)}",
+                "mean_power": float(np.mean(band_power)),
+                "median_power": float(np.median(band_power)),
+                "p95_power": float(np.percentile(band_power,95)),
+                "max_power": float(np.max(band_power))
+            })
 
-fig4, ax4 = plt.subplots(figsize=(11,3.8))
-im2 = ax4.pcolormesh(t, freqs, power, shading="auto")
-ax4.set_yscale("log"); ax4.set_ylim(fmin, fmax_eff)
-ax4.set_xlabel("Time [s]"); ax4.set_ylabel("Frequency [Hz]")
-ax4.set_title(f"CWT Scalogram | {wavelet}")
-cb2 = fig4.colorbar(im2, ax=ax4); cb2.set_label("Power")
-st.pyplot(fig4)
+    if len(cwt_summary) > 0:
+        fig5, ax5 = plt.subplots(figsize=(11,3.6))
+        for c in cwt_band_df.columns:
+            if c.startswith("CWT_"):
+                ax5.plot(cwt_band_df["time_s"], cwt_band_df[c], lw=0.9, label=c.replace("CWT_",""))
+        ax5.set_xlim(0, duration); ax5.set_xlabel("Time [s]"); ax5.set_ylabel("CWT band power (a.u.)")
+        ax5.legend(ncol=3, fontsize=8)
+        st.pyplot(fig5); plt.close(fig5)
 
-# CWT帯域エネルギー
-cwt_band_df = pd.DataFrame({"time_s": t})
-cwt_summary = []
-for (a,b) in bands:
-    mask = (freqs >= max(a, fmin)) & (freqs <= min(b, fmax_eff))
-    if np.any(mask):
-        band_power = power[mask, :].mean(axis=0)  # 周波数方向に平均（和でもOK）
-        col = f"CWT_{int(a)}-{int(b)}Hz"
-        cwt_band_df[col] = band_power
-        cwt_summary.append({
-            "band_Hz": f"{int(a)}-{int(b)}",
-            "mean_power": float(np.mean(band_power)),
-            "median_power": float(np.median(band_power)),
-            "p95_power": float(np.percentile(band_power,95)),
-            "max_power": float(np.max(band_power))
-        })
+        cwt_summ_df = pd.DataFrame(cwt_summary)
+        st.dataframe(cwt_summ_df, use_container_width=True)
 
-if cwt_band_df.shape[1] > 1:
-    fig5, ax5 = plt.subplots(figsize=(11,3.6))
-    for c in cwt_band_df.columns:
-        if c.startswith("CWT_"):
-            ax5.plot(cwt_band_df["time_s"], cwt_band_df[c], lw=0.9, label=c.replace("CWT_",""))
-    ax5.set_xlim(0, duration); ax5.set_xlabel("Time [s]"); ax5.set_ylabel("CWT band power (a.u.)")
-    ax5.legend(ncol=3, fontsize=8)
-    st.pyplot(fig5)
-
-    cwt_summ_df = pd.DataFrame(cwt_summary)
-    st.dataframe(cwt_summ_df, use_container_width=True)
-
-    if export_csv:
-        st.download_button("CWT帯域エネルギー時系列CSVをダウンロード",
-                           data=cwt_band_df.to_csv(index=False).encode("utf-8"),
-                           file_name="cwt_band_power_timeseries.csv", mime="text/csv")
-        st.download_button("CWT帯域エネルギー要約CSVをダウンロード",
-                           data=cwt_summ_df.to_csv(index=False).encode("utf-8"),
-                           file_name="cwt_band_power_summary.csv", mime="text/csv")
+        if export_csv:
+            st.download_button("CWT帯域エネルギー時系列CSVをダウンロード",
+                               data=cwt_band_df.to_csv(index=False).encode("utf-8"),
+                               file_name="cwt_band_power_timeseries.csv", mime="text/csv")
+            st.download_button("CWT帯域エネルギー要約CSVをダウンロード",
+                               data=cwt_summ_df.to_csv(index=False).encode("utf-8"),
+                               file_name="cwt_band_power_summary.csv", mime="text/csv")
+except Exception as e:
+    st.warning(f"CWT計算中にエラー: {e}. 解析長・周波数分割数を小さくして再試行してください。")
 
 # ---- PSD（Welch） ----
 st.subheader("パワースペクトル密度（Welch）")
@@ -333,20 +328,19 @@ explain_button("Welch PSD",
 ・全体のスペクトル分布  
 ・中心周波数帯の偏りや高周波寄与の増加  
 """)
-
 ff, pxx = compute_psd_welch(x_proc, sr, nperseg=4096 if sr>=8000 else 2048, noverlap=1024)
 fig6, ax6 = plt.subplots(figsize=(11,3.0))
 ax6.semilogy(ff, pxx)
 ax6.set_xlim(0, min(sr/2, max(stft_fmax, fmax_eff)))
 ax6.set_xlabel("Frequency [Hz]"); ax6.set_ylabel("PSD")
-st.pyplot(fig6)
+st.pyplot(fig6); plt.close(fig6)
 if export_csv:
     psd_df = pd.DataFrame({"freq_Hz": ff, "PSD": pxx})
     st.download_button("PSD（Welch）CSVをダウンロード",
                        data=psd_df.to_csv(index=False).encode("utf-8"),
                        file_name="psd_welch.csv", mime="text/csv")
 
-# ---- 追加の簡易スペクトル特徴量 ----
+# ---- 簡易スペクトル特徴量 ----
 st.subheader("簡易スペクトル特徴量")
 explain_button("特徴量（重心・帯域比など）",
 """**何の解析？**  
@@ -354,12 +348,10 @@ explain_button("特徴量（重心・帯域比など）",
 **使い方**  
 ・経時比較／群間比較／ROC解析の説明変数として利用可能。  
 """)
-
-# スペクトル重心など（librosa）
 spec_cent = librosa.feature.spectral_centroid(y=x_proc, sr=sr)[0]
-spec_bw = librosa.feature.spectral_bandwidth(y=x_proc, sr=sr)[0]
-rolloff = librosa.feature.spectral_rolloff(y=x_proc, sr=sr, roll_percent=0.95)[0]
-zcr = librosa.feature.zero_crossing_rate(y=x_proc)[0]
+spec_bw   = librosa.feature.spectral_bandwidth(y=x_proc, sr=sr)[0]
+rolloff   = librosa.feature.spectral_rolloff(y=x_proc, sr=sr, roll_percent=0.95)[0]
+zcr       = librosa.feature.zero_crossing_rate(y=x_proc)[0]
 feat = {
     "mean_centroid_Hz": float(np.mean(spec_cent)),
     "median_centroid_Hz": float(np.median(spec_cent)),
