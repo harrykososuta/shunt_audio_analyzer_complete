@@ -3,7 +3,7 @@
 シャント音 解析ビューア 完全版（Cloud安定版）
  - 入力: MP4/WAV など（MP4は音声抽出→解析）
  - 前処理: ノッチ(50/60Hz), バンドパス, リサンプリング
- - 可視化: 時間波形, STFTスペクトログラム(縦軸狭め可), CWTスカログラム(帯域エネルギーCSV)
+ - 可視化: 時間波形, STFTスペクトログラム
  - 解析: 帯域包絡(Hilbert), Welch PSD, 簡易特徴量
  - UI: 各解析に「説明」ボタン（expander のみに変更）
 """
@@ -58,6 +58,7 @@ def band_envelope(x, fs, band, order=4):
     y = apply_bandpass(x, fs, band[0], band[1], order=order)
     env = np.abs(hilbert(y))
     return y, env
+
 # =============================================================================
 # サイドバー
 # =============================================================================
@@ -83,13 +84,7 @@ with st.sidebar:
     stft_fmin = st.number_input("表示下限", 0.0, 5000.0, 0.0, 10.0)
     stft_fmax = st.number_input("表示上限", 50.0, 20000.0, 1200.0, 50.0)
 
-    st.header("4) CWTパラメータ")
-    wavelet = st.selectbox("ウェーブレット", ["morl", "cmor1.5-1.0", "cmor1.5-0.5", "mexh"], index=0)
-    fmin = st.number_input("CWT下限周波数 [Hz]", 10.0, 5000.0, 30.0, 10.0)
-    fmax = st.number_input("CWT上限周波数 [Hz]", 20.0, 20000.0, 1200.0, 10.0)
-    n_freqs = st.slider("周波数分割数", 32, 512, 128)  # 初期値やや軽め
-
-    st.header("5) 帯域（包絡 & CWTエネルギー集計）")
+    st.header("4) 帯域（包絡 & エネルギー集計）")
     default_bands = [(150,300),(600,1200)]
     bands_text = st.text_area("例: 150-300,600-1200",
                               value=",".join([f"{a}-{b}" for (a,b) in default_bands]))
@@ -104,13 +99,13 @@ with st.sidebar:
         return out
     bands = parse_bands(bands_text)
 
-    st.header("6) 出力")
+    st.header("5) 出力")
     export_csv = st.checkbox("CSV出力（帯域要約・時系列）", value=True)
 
 # =============================================================================
 # メイン
 # =============================================================================
-st.title("シャント音 解析ビューア（STFT/CWT/帯域包絡/PSD）")
+st.title("シャント音 解析ビューア（STFT/帯域包絡/PSD）")
 
 if up is None:
     st.info("左のサイドバーから音声/動画ファイルをアップロードしてください。")
@@ -126,7 +121,6 @@ raw = up.read()
 tmp_input.write_bytes(raw)
 
 def load_audio_from_tmp(p: Path):
-    """tmp_input から y, sr を返す。MP4は moviepy → WAV 抽出。失敗時は librosa 直読みにフォールバック。"""
     suf = p.suffix.lower()
     if suf == ".mp4":
         try:
@@ -219,7 +213,15 @@ if len(env_df.columns) > 1:
     ax2.set_xlim(0,duration); ax2.set_xlabel("Time [s]"); ax2.set_ylabel("Envelope (a.u.)")
     ax2.legend(ncol=3, fontsize=8)
     st.pyplot(fig2); plt.close(fig2)
-    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True)
+    summary_df = pd.DataFrame(summary_rows)
+    st.dataframe(summary_df, use_container_width=True)
+    if export_csv:
+        st.download_button("包絡要約CSVをダウンロード",
+                           data=summary_df.to_csv(index=False).encode("utf-8"),
+                           file_name="band_envelope_summary.csv", mime="text/csv")
+        st.download_button("包絡時系列CSVをダウンロード",
+                           data=env_df.to_csv(index=False).encode("utf-8"),
+                           file_name="band_envelope_timeseries.csv", mime="text/csv")
 
 # ---- STFT ----
 st.subheader("STFTスペクトログラム（|X|）")
@@ -253,7 +255,7 @@ explain_button("Welch PSD",
 ff, pxx = compute_psd_welch(x_proc, sr, nperseg=4096 if sr>=8000 else 2048, noverlap=1024)
 fig6, ax6 = plt.subplots(figsize=(11,3.0))
 ax6.semilogy(ff, pxx)
-ax6.set_xlim(0, min(sr/2, max(stft_fmax, fmax_eff)))
+ax6.set_xlim(0, min(sr/2, max(stft_fmax, 1200)))
 ax6.set_xlabel("Frequency [Hz]"); ax6.set_ylabel("PSD")
 st.pyplot(fig6); plt.close(fig6)
 if export_csv:
@@ -284,10 +286,3 @@ feat = {
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 
 st.success("解析完了。必要に応じて各CSVをダウンロードしてください。")
-st.caption("ヒント：CWTはn_freqs（周波数分割）と解析長に比例して計算が重くなります。必要に応じて解析長の短縮・リサンプリングを活用してください。")
-
-
-
-
-
-
