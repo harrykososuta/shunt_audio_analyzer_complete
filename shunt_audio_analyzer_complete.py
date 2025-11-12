@@ -63,7 +63,7 @@ def band_envelope(x, fs, band, order=4):
 # =============================================================================
 with st.sidebar:
     st.header("1) 音声の読み込み")
-    up = st.file_uploader("WAV/MP3/FLAC/OGG/M4A/MP4", type=["wav","mp3","flac","ogg","m4a","MP4"])
+    up = st.file_uploader("WAV/MP3/FLAC/OGG/M4A", type=["wav","mp3","flac","ogg","m4a"])
     st.caption("MP4は内部で音声抽出→WAVに変換して解析します。")
 
     st.header("2) 前処理")
@@ -349,6 +349,7 @@ st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 
 st.success("解析完了。必要に応じて各CSVをダウンロードしてください。")
 st.caption("ヒント：CWTはn_freqs（周波数分割）と解析長に比例して計算が重くなります。必要に応じて解析長の短縮・リサンプリングを活用してください。")
+
 
 
 
