@@ -68,7 +68,7 @@ def calculate_hlpr(x, fs, high_band=(500, 700), low_band=(100, 250), order=4):
     hlpr = high_peak / (low_peak + 1e-9)  # avoid division by zero
     return hlpr
 
-# ---- UIサイドバー ----
+# ---- UI（サイドバー）----
 with st.sidebar:
     st.header("1) 音声の読み込み")
     up = st.file_uploader("WAV/MP3/FLAC/OGG/M4A", type=["wav","mp3","flac","ogg","m4a"])
@@ -77,23 +77,16 @@ with st.sidebar:
     target_sr = st.selectbox("解析サンプリング周波数", [2000, 4000, 8000, 16000], index=2)
     use_notch = st.checkbox("ノッチ除去（商用電源）", value=True)
     notch_freq = st.selectbox("ノッチ周波数", [50, 60], index=0)
-    notch_q = st.slider("ノッチQ（鋤さ）", 10, 60, 30)
+    notch_q = st.slider("ノッチQ（鋭さ）", 10, 60, 30)
     bp_low = st.number_input("バンドパス下限 [Hz]", 0.0, 5000.0, 20.0, 10.0)
     bp_high = st.number_input("バンドパス上限 [Hz]", 50.0, 20000.0, 1200.0, 50.0)
     bp_order = st.slider("バンドパス次数", 2, 8, 4)
 
-    st.header("3) STFTパラメータ")
-    n_fft = st.selectbox("n_fft（窓長）", [512, 1024, 2048, 4096], index=2)
-    hop = st.selectbox("hop_length", [64, 128, 256, 512], index=2)
-    win = st.selectbox("窓関数", ["hann", "hamming", "blackman"], index=0)
-    st.markdown("**縦軸レンジ（Hz）**")
-    stft_fmax = st.number_input("表示上限", 50.0, 20000.0, 600.0, 50.0)
-
-    st.header("4) 出力")
+    st.header("3) 出力")
     export_csv = st.checkbox("CSV出力（スペクトル特徴量）", value=True)
 
 # ---- メイン処理 ----
-st.title("シャント音 解析ビューア（STFT/PSD/包縛/HLPR）")
+st.title("シャント音 解析ビューア（STFT/PSD/包絡/HLPR）")
 if up is None:
     st.info("左のサイドバーから音声ファイルをアップロードしてください。")
     st.stop()
@@ -145,16 +138,33 @@ ax_psd.semilogy(ff, pxx)
 ax_psd.set_xlabel("Frequency [Hz]"); ax_psd.set_ylabel("PSD")
 st.pyplot(fig_psd); plt.close(fig_psd)
 
-# ---- STFT ----
-st.subheader("STFTスペクトログラム")
+# ---- STFT Linear ----
+st.subheader("STFTスペクトログラム（Linear）")
 F_stft, TT_stft, S_stft = compute_stft(x_proc, sr)
 fig_stft, ax_stft = plt.subplots(figsize=(11, 3.5))
-ax_stft.pcolormesh(TT_stft, F_stft, S_stft, shading="auto")
-ax_stft.set_ylim(0, stft_fmax)
+pcm = ax_stft.pcolormesh(TT_stft, F_stft, S_stft, shading="auto", cmap="viridis")
+ax_stft.set_ylim(0, 600)
 ax_stft.set_xlabel("Time [s]")
 ax_stft.set_ylabel("Frequency [Hz]")
+cb = fig_stft.colorbar(pcm, ax=ax_stft)
+cb.set_label("Amplitude")
 st.pyplot(fig_stft)
 plt.close(fig_stft)
+
+# ---- STFT Log ----
+st.subheader("STFTスペクトログラム（Log表示）")
+S_db = 10 * np.log10(S_stft + 1e-6)
+fig_log, ax_log = plt.subplots(figsize=(11, 3.8))
+pcm2 = ax_log.pcolormesh(TT_stft, F_stft, S_db, shading="auto", cmap="jet")
+ax_log.set_yscale("log")
+ax_log.set_ylim(20, 1000)
+ax_log.set_xlabel("Time [s]")
+ax_log.set_ylabel("Frequency [Hz] (log scale)")
+ax_log.set_title("STFT Spectrogram (Log Power)")
+cb2 = fig_log.colorbar(pcm2, ax=ax_log)
+cb2.set_label("Power [dB]")
+st.pyplot(fig_log)
+plt.close(fig_log)
 
 # ---- 特徴量テーブル出力 ----
 spec_cent = librosa.feature.spectral_centroid(y=x_proc, sr=sr)[0]
