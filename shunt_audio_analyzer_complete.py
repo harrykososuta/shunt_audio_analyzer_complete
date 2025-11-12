@@ -15,7 +15,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import soundfile as sf
 import librosa
-import pywt
 import streamlit as st
 from scipy.signal import (
     butter, filtfilt, iirnotch, welch, hilbert,
@@ -59,15 +58,6 @@ def band_envelope(x, fs, band, order=4):
     y = apply_bandpass(x, fs, band[0], band[1], order=order)
     env = np.abs(hilbert(y))
     return y, env
-
-# ---- CWT helper ----
-def freqs_to_scales(freqs_hz, fs, wavelet_name="morl"):
-    fc = pywt.central_frequency(wavelet_name)  # Morlet≈0.8125
-    freqs_hz = np.asarray(freqs_hz, dtype=float)
-    scales = fc * fs / np.maximum(freqs_hz, 1e-12)
-    return scales
-
-
 # =============================================================================
 # サイドバー
 # =============================================================================
@@ -359,5 +349,6 @@ st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 
 st.success("解析完了。必要に応じて各CSVをダウンロードしてください。")
 st.caption("ヒント：CWTはn_freqs（周波数分割）と解析長に比例して計算が重くなります。必要に応じて解析長の短縮・リサンプリングを活用してください。")
+
 
 
