@@ -240,70 +240,6 @@ ax3.set_xlabel("Time [s]"); ax3.set_ylabel("Frequency [Hz]")
 cb = fig3.colorbar(im, ax=ax3); cb.set_label("Amplitude")
 st.pyplot(fig3); plt.close(fig3)
 
-# ---- CWT + 帯域エネルギー ----
-st.subheader("CWTスカログラム（連続ウェーブレット変換）＋帯域エネルギー")
-explain_button("CWT（連続ウェーブレット変換）",
-"""**何の解析？**  
-Morlet などのウェーブレットを使い、時間×周波数の**スカログラム**を描きます。  
-高周波帯では時間分解能↑、低周波帯では周波数分解能↑の特性。
-
-**何がわかる？**  
-・狭窄/乱流に起因する**高周波成分（例：600–1200 Hz）**の持続・ピーク  
-・イベントの瞬間的変化の検出（STFTより敏感な場面あり）  
-**出力:** 指定帯域の**CWT帯域エネルギー時系列／要約CSV**  
-""")
-fmax_eff = min(fmax, sr/2 - 1)
-freqs = np.geomspace(max(1.0, fmin), fmax_eff, num=int(n_freqs))
-scales = freqs_to_scales(freqs, sr, wavelet_name=wavelet)
-try:
-    coef, _ = pywt.cwt(x_proc, scales, wavelet, sampling_period=1.0/sr)
-    power = (np.abs(coef))**2
-    fig4, ax4 = plt.subplots(figsize=(11,3.8))
-    im2 = ax4.pcolormesh(t, freqs, power, shading="auto")
-    ax4.set_yscale("log"); ax4.set_ylim(fmin, fmax_eff)
-    ax4.set_xlabel("Time [s]"); ax4.set_ylabel("Frequency [Hz]")
-    ax4.set_title(f"CWT Scalogram | {wavelet}")
-    cb2 = fig4.colorbar(im2, ax=ax4); cb2.set_label("Power")
-    st.pyplot(fig4); plt.close(fig4)
-
-    cwt_band_df = pd.DataFrame({"time_s": t})
-    cwt_summary = []
-    for (a,b) in bands:
-        mask = (freqs >= max(a, fmin)) & (freqs <= min(b, fmax_eff))
-        if np.any(mask):
-            band_power = power[mask, :].mean(axis=0)  # 周波数方向に平均（和でもOK）
-            col = f"CWT_{int(a)}-{int(b)}Hz"
-            cwt_band_df[col] = band_power
-            cwt_summary.append({
-                "band_Hz": f"{int(a)}-{int(b)}",
-                "mean_power": float(np.mean(band_power)),
-                "median_power": float(np.median(band_power)),
-                "p95_power": float(np.percentile(band_power,95)),
-                "max_power": float(np.max(band_power))
-            })
-
-    if len(cwt_summary) > 0:
-        fig5, ax5 = plt.subplots(figsize=(11,3.6))
-        for c in cwt_band_df.columns:
-            if c.startswith("CWT_"):
-                ax5.plot(cwt_band_df["time_s"], cwt_band_df[c], lw=0.9, label=c.replace("CWT_",""))
-        ax5.set_xlim(0, duration); ax5.set_xlabel("Time [s]"); ax5.set_ylabel("CWT band power (a.u.)")
-        ax5.legend(ncol=3, fontsize=8)
-        st.pyplot(fig5); plt.close(fig5)
-
-        cwt_summ_df = pd.DataFrame(cwt_summary)
-        st.dataframe(cwt_summ_df, use_container_width=True)
-
-        if export_csv:
-            st.download_button("CWT帯域エネルギー時系列CSVをダウンロード",
-                               data=cwt_band_df.to_csv(index=False).encode("utf-8"),
-                               file_name="cwt_band_power_timeseries.csv", mime="text/csv")
-            st.download_button("CWT帯域エネルギー要約CSVをダウンロード",
-                               data=cwt_summ_df.to_csv(index=False).encode("utf-8"),
-                               file_name="cwt_band_power_summary.csv", mime="text/csv")
-except Exception as e:
-    st.warning(f"CWT計算中にエラー: {e}. 解析長・周波数分割数を小さくして再試行してください。")
-
 # ---- PSD（Welch） ----
 st.subheader("パワースペクトル密度（Welch）")
 explain_button("Welch PSD",
@@ -349,6 +285,7 @@ st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 
 st.success("解析完了。必要に応じて各CSVをダウンロードしてください。")
 st.caption("ヒント：CWTはn_freqs（周波数分割）と解析長に比例して計算が重くなります。必要に応じて解析長の短縮・リサンプリングを活用してください。")
+
 
 
 
