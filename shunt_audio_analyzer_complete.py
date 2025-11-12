@@ -3,8 +3,8 @@
 シャント音 解析ビューア 完全版（Cloud安定版）
  - 入力: MP4/WAV など（MP4は音声抽出→解析）
  - 前処理: ノッチ(50/60Hz), バンドパス, リサンプリング
- - 可視化: 時間波形, STFTスペクトログラム
- - 解析: 帯域包絡(Hilbert), Welch PSD, 簡易特徴量
+ - 可視化: 時間波形, STFTスペクトログラム(縦軸狭め可)
+ - 解析: 帯域包絡(Hilbert), Welch PSD, 簡易特徴量, HLPR比
  - UI: 各解析に「説明」ボタン（expander のみに変更）
 """
 
@@ -24,7 +24,7 @@ from scipy.signal import (
 # ---- ページ設定 ----
 st.set_page_config(page_title="Shunt Sound Analyzer - 完全版", layout="wide")
 
-# ---- UI小道具（popover削除→expanderのみ） ----
+# ---- UI小道具 ----
 def explain_button(title: str, body_md: str):
     with st.expander(f"ℹ️ {title} の説明"):
         st.markdown(body_md)
@@ -59,13 +59,19 @@ def band_envelope(x, fs, band, order=4):
     env = np.abs(hilbert(y))
     return y, env
 
-# =============================================================================
-# サイドバー
-# =============================================================================
+# ---- HLPR calculation ----
+def calculate_hlpr(x, fs, high_band=(500, 700), low_band=(100, 250), order=4):
+    _, high_env = band_envelope(x, fs, high_band, order=order)
+    _, low_env = band_envelope(x, fs, low_band, order=order)
+    high_peak = np.max(high_env)
+    low_peak = np.max(low_env)
+    hlpr = high_peak / (low_peak + 1e-9)  # avoid division by zero
+    return hlpr
+
+# ---- UI（サイドバー）----
 with st.sidebar:
     st.header("1) 音声の読み込み")
     up = st.file_uploader("WAV/MP3/FLAC/OGG/M4A", type=["wav","mp3","flac","ogg","m4a"])
-    st.caption("MP4は内部で音声抽出→WAVに変換して解析します。")
 
     st.header("2) 前処理")
     target_sr = st.selectbox("解析サンプリング周波数", [2000, 4000, 8000, 16000], index=2)
@@ -76,72 +82,24 @@ with st.sidebar:
     bp_high = st.number_input("バンドパス上限 [Hz]", 50.0, 20000.0, 1200.0, 50.0)
     bp_order = st.slider("バンドパス次数", 2, 8, 4)
 
-    st.header("3) STFTパラメータ")
-    n_fft = st.selectbox("n_fft（窓長）", [512, 1024, 2048, 4096], index=2)
-    hop = st.selectbox("hop_length", [64, 128, 256, 512], index=2)
-    win = st.selectbox("窓関数", ["hann", "hamming", "blackman"], index=0)
-    st.markdown("**縦軸レンジ（Hz）**")
-    stft_fmin = st.number_input("表示下限", 0.0, 5000.0, 0.0, 10.0)
-    stft_fmax = st.number_input("表示上限", 50.0, 20000.0, 1200.0, 50.0)
+    st.header("3) 出力")
+    export_csv = st.checkbox("CSV出力（スペクトル特徴量）", value=True)
 
-    st.header("4) 帯域（包絡 & エネルギー集計）")
-    default_bands = [(150,300),(600,1200)]
-    bands_text = st.text_area("例: 150-300,600-1200",
-                              value=",".join([f"{a}-{b}" for (a,b) in default_bands]))
-    def parse_bands(txt):
-        out=[]
-        for tok in txt.split(","):
-            tok = tok.strip()
-            if "-" in tok:
-                a,b = tok.split("-")
-                try: out.append((float(a), float(b)))
-                except: pass
-        return out
-    bands = parse_bands(bands_text)
-
-    st.header("5) 出力")
-    export_csv = st.checkbox("CSV出力（帯域要約・時系列）", value=True)
-
-# =============================================================================
-# メイン
-# =============================================================================
-st.title("シャント音 解析ビューア（STFT/帯域包絡/PSD）")
-
+# ---- メイン処理 ----
+st.title("シャント音 解析ビューア（STFT/PSD/包絡/HLPR）")
 if up is None:
-    st.info("左のサイドバーから音声/動画ファイルをアップロードしてください。")
+    st.info("左のサイドバーから音声ファイルをアップロードしてください。")
     st.stop()
 
-# ---- 一時ファイルは /tmp に保存（Cloud安全） ----
 TMP_DIR = Path(tempfile.gettempdir())
 tmp_input = TMP_DIR / ("_input_" + Path(up.name).name)
-tmp_wav   = TMP_DIR / "_extracted_audio.wav"
+tmp_input.write_bytes(up.read())
 
-# ---- 入力を保存 → 読み込み ----
-raw = up.read()
-tmp_input.write_bytes(raw)
+def load_audio(p: Path):
+    y, sr = librosa.load(str(p), sr=None, mono=True)
+    return y.astype(float), int(sr)
 
-def load_audio_from_tmp(p: Path):
-    suf = p.suffix.lower()
-    if suf == ".mp4":
-        try:
-            from moviepy.editor import AudioFileClip
-            clip = AudioFileClip(str(p))
-            clip.write_audiofile(str(tmp_wav), fps=16000, nbytes=2, ffmpeg_params=["-ac","1"])
-            clip.close()
-            y, sr = sf.read(str(tmp_wav))
-            if y.ndim == 2: y = y.mean(axis=1)
-            return y.astype(float), 16000
-        except Exception as e:
-            st.warning(f"MP4からの抽出に失敗（{e}）。librosaで直接読みに切り替えます。")
-            y, sr = librosa.load(str(p), sr=None, mono=True)
-            return y.astype(float), int(sr)
-    else:
-        y, sr = librosa.load(str(p), sr=None, mono=True)
-        return y.astype(float), int(sr)
-
-y_raw, sr_raw = load_audio_from_tmp(tmp_input)
-
-# ---- リサンプリング（解析用SRへ）----
+y_raw, sr_raw = load_audio(tmp_input)
 if sr_raw != target_sr:
     from math import gcd
     g = gcd(sr_raw, target_sr)
@@ -152,137 +110,54 @@ else:
     sr = sr_raw
 
 t = np.arange(len(y))/sr
-duration = len(y)/sr
-
-# ---- 前処理 ----
 x_proc = y.copy()
 if use_notch:
-    try:
-        x_proc = apply_notch(x_proc, sr, freq=float(notch_freq), q=float(notch_q))
-    except Exception:
-        st.warning("ノッチ除去に失敗しました（パラメータを確認）")
+    x_proc = apply_notch(x_proc, sr, freq=float(notch_freq), q=float(notch_q))
 x_proc = apply_bandpass(x_proc, sr, bp_low, bp_high, order=bp_order)
 
 # ---- 時間波形 ----
-st.subheader("時間波形（原波形／前処理後）")
-explain_button("時間波形",
-"""**何の解析？**  
-録音したシャント音の振幅を時間軸で表示します。
-
-**何がわかる？**  
-・全体のS/N、アーチファクト（触れ/衝撃音）  
-・特定イベント（圧迫・姿勢変化・挙上試験）とのタイミング対応  
-""")
-fig, ax = plt.subplots(2,1,figsize=(11,4), constrained_layout=True)
-ax[0].plot(t, y, lw=0.7); ax[0].set_title(f"Original (sr={sr} Hz, {duration:.2f}s)")
-ax[1].plot(t, x_proc, lw=0.7); ax[1].set_title(f"Processed (Notch {notch_freq}Hz={use_notch}, BP {bp_low}-{bp_high} Hz)")
-for a in ax: a.set_xlabel("Time [s]"); a.set_ylabel("Amp")
+st.subheader("時間波形")
+fig, ax = plt.subplots(figsize=(11,3))
+ax.plot(t, x_proc, lw=0.6)
+ax.set_xlabel("Time [s]"); ax.set_ylabel("Amplitude")
 st.pyplot(fig); plt.close(fig)
 
-# ---- 帯域包絡（Hilbert） ----
-st.subheader("周波数帯域ごとの包絡（Hilbert）")
-explain_button("帯域包絡（Hilbert）",
-"""**何の解析？**  
-指定帯域でバンドパス後、**ヒルベルト変換**で包絡（エンベロープ）を計算し、帯域エネルギーの時間変化を可視化します。
+# ---- HLPR計算 ----
+st.subheader("HLPR（高低周波ピーク比）")
+hlpr = calculate_hlpr(x_proc, sr)
+st.metric("HLPR値", f"{hlpr:.3f}")
+if hlpr >= 0.35:
+    st.error("⚠️ HLPRが0.35以上 → シャントトラブルの可能性があります")
+else:
+    st.success("HLPRは正常範囲内です")
 
-**何がわかる？**  
-・狭窄/乱流で**高周波帯**の寄与が増えやすい  
-・イベント（圧迫/挙上）前後の帯域エネルギー変化  
-""")
-env_df = pd.DataFrame({"time_s": t})
-summary_rows = []
-for (a,b) in bands:
-    try:
-        _, env = band_envelope(x_proc, sr, (a,b), order=bp_order)
-        env_df[f"{int(a)}-{int(b)}Hz_env"] = env
-        summary_rows.append({
-            "band_Hz": f"{int(a)}-{int(b)}",
-            "mean_env": float(np.mean(env)),
-            "median_env": float(np.median(env)),
-            "p95_env": float(np.percentile(env,95)),
-            "max_env": float(np.max(env))
-        })
-    except Exception as e:
-        st.warning(f"帯域 {a}-{b} Hz でエラー: {e}")
-
-if len(env_df.columns) > 1:
-    fig2, ax2 = plt.subplots(figsize=(11,3.6))
-    for c in env_df.columns:
-        if c.endswith("_env"):
-            ax2.plot(env_df["time_s"], env_df[c], lw=0.8, label=c.replace("_env",""))
-    ax2.set_xlim(0,duration); ax2.set_xlabel("Time [s]"); ax2.set_ylabel("Envelope (a.u.)")
-    ax2.legend(ncol=3, fontsize=8)
-    st.pyplot(fig2); plt.close(fig2)
-    summary_df = pd.DataFrame(summary_rows)
-    st.dataframe(summary_df, use_container_width=True)
-    if export_csv:
-        st.download_button("包絡要約CSVをダウンロード",
-                           data=summary_df.to_csv(index=False).encode("utf-8"),
-                           file_name="band_envelope_summary.csv", mime="text/csv")
-        st.download_button("包絡時系列CSVをダウンロード",
-                           data=env_df.to_csv(index=False).encode("utf-8"),
-                           file_name="band_envelope_timeseries.csv", mime="text/csv")
+# ---- Welch PSD ----
+ff, pxx = compute_psd_welch(x_proc, sr)
+fig_psd, ax_psd = plt.subplots(figsize=(11,3))
+ax_psd.semilogy(ff, pxx)
+ax_psd.set_xlabel("Frequency [Hz]"); ax_psd.set_ylabel("PSD")
+st.pyplot(fig_psd); plt.close(fig_psd)
 
 # ---- STFT ----
-st.subheader("STFTスペクトログラム（|X|）")
-explain_button("STFT（短時間フーリエ変換）",
-"""**何の解析？**  
-短い窓でフーリエ変換を連続実行し、時間×周波数の強度分布（**スペクトログラム**）を描きます。
+F_stft, TT_stft, S_stft = compute_stft(x_proc, sr)
+fig_stft, ax_stft = plt.subplots(figsize=(11,3.5))
+ax_stft.pcolormesh(TT_stft, F_stft, S_stft, shading="auto")
+ax_stft.set_xlabel("Time [s]"); ax_stft.set_ylabel("Frequency [Hz]")
+st.pyplot(fig_stft); plt.close(fig_stft)
 
-**何がわかる？**  
-・時間変動する高周波/低周波成分  
-・**縦軸（周波数レンジ）を狭める**ことで目的帯域（例: 0–1.2kHz）を高解像に観察可能  
-**Tips:** n_fftを大きく→周波数分解能↑、hopを小さく→時間分解能↑  
-""")
-F_stft, TT_stft, S_stft = compute_stft(x_proc, sr, n_fft=n_fft, hop=hop, win=win)
-fig3, ax3 = plt.subplots(figsize=(11,3.8))
-im = ax3.pcolormesh(TT_stft, F_stft, S_stft, shading="auto")
-ax3.set_ylim(max(0, stft_fmin), min(sr/2, stft_fmax))
-ax3.set_xlabel("Time [s]"); ax3.set_ylabel("Frequency [Hz]")
-cb = fig3.colorbar(im, ax=ax3); cb.set_label("Amplitude")
-st.pyplot(fig3); plt.close(fig3)
-
-# ---- PSD（Welch） ----
-st.subheader("パワースペクトル密度（Welch）")
-explain_button("Welch PSD",
-"""**何の解析？**  
-信号を重なり窓で区切り平均化する**Welch法**で、周波数成分の強度（密度）を推定します。
-
-**何がわかる？**  
-・全体のスペクトル分布  
-・中心周波数帯の偏りや高周波寄与の増加  
-""")
-ff, pxx = compute_psd_welch(x_proc, sr, nperseg=4096 if sr>=8000 else 2048, noverlap=1024)
-fig6, ax6 = plt.subplots(figsize=(11,3.0))
-ax6.semilogy(ff, pxx)
-ax6.set_xlim(0, min(sr/2, max(stft_fmax, 1200)))
-ax6.set_xlabel("Frequency [Hz]"); ax6.set_ylabel("PSD")
-st.pyplot(fig6); plt.close(fig6)
-if export_csv:
-    psd_df = pd.DataFrame({"freq_Hz": ff, "PSD": pxx})
-    st.download_button("PSD（Welch）CSVをダウンロード",
-                       data=psd_df.to_csv(index=False).encode("utf-8"),
-                       file_name="psd_welch.csv", mime="text/csv")
-
-# ---- 簡易スペクトル特徴量 ----
-st.subheader("簡易スペクトル特徴量")
-explain_button("特徴量（重心・帯域比など）",
-"""**何の解析？**  
-・スペクトル重心 / 帯域比などのシンプル指標を算出。  
-**使い方**  
-・経時比較／群間比較／ROC解析の説明変数として利用可能。  
-""")
+# ---- 特徴量テーブル出力 ----
 spec_cent = librosa.feature.spectral_centroid(y=x_proc, sr=sr)[0]
 spec_bw   = librosa.feature.spectral_bandwidth(y=x_proc, sr=sr)[0]
-rolloff   = librosa.feature.spectral_rolloff(y=x_proc, sr=sr, roll_percent=0.95)[0]
+rolloff   = librosa.feature.spectral_rolloff(y=x_proc, sr=sr)[0]
 zcr       = librosa.feature.zero_crossing_rate(y=x_proc)[0]
 feat = {
     "mean_centroid_Hz": float(np.mean(spec_cent)),
-    "median_centroid_Hz": float(np.median(spec_cent)),
     "mean_bandwidth_Hz": float(np.mean(spec_bw)),
-    "rolloff95_Hz_median": float(np.median(rolloff)),
-    "zcr_mean": float(np.mean(zcr))
+    "median_rolloff_Hz": float(np.median(rolloff)),
+    "zcr_mean": float(np.mean(zcr)),
+    "HLPR": float(hlpr)
 }
+st.subheader("簡易スペクトル特徴量（+HLPR）")
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
-
-st.success("解析完了。必要に応じて各CSVをダウンロードしてください。")
+if export_csv:
+    st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
