@@ -3,9 +3,9 @@
 シャント音 解析ビューア 完全版（Cloud安定版）
  - 入力: MP4/WAV など（MP4は音声抽出→解析）
  - 前処理: ノッチ(50/60Hz), バンドパス, リサンプリング
- - 可視化: 時間波形, STFTスペクトログラム(Linear & Log)
- - 解析: 帯域包絡(Hilbert), Welch PSD, HLPR比
- - UI: 各解析に「説明」ボタン（expander表示）
+ - 可視化: 時間波形, STFTスペクトログラム（Linear/Log両方）
+ - 解析: 帯域包絡(Hilbert), Welch PSD, 簡易特徴量, HLPR比
+ - UI: 各解析に「説明」ボタン付き
 """
 
 from pathlib import Path
@@ -21,12 +21,15 @@ from scipy.signal import (
     get_window, stft as sp_stft, resample_poly
 )
 
+# ---- ページ設定 ----
 st.set_page_config(page_title="Shunt Sound Analyzer - 完全版", layout="wide")
 
+# ---- UI小道具 ----
 def explain_button(title: str, body_md: str):
-    with st.expander(f"🛈 {title} の説明"):
+    with st.expander(f"ℹ️ {title}"):
         st.markdown(body_md)
 
+# ---- DSP utilities ----
 def butter_bandpass(lowcut, highcut, fs, order=4):
     nyq = 0.5 * fs
     low = max(0.0001, lowcut / nyq)
@@ -64,6 +67,7 @@ def calculate_hlpr(x, fs, high_band=(500, 700), low_band=(100, 250), order=4):
     hlpr = high_peak / (low_peak + 1e-9)
     return hlpr, high_peak, low_peak
 
+# ---- サイドバー ----
 with st.sidebar:
     st.header("1) 音声の読み込み")
     up = st.file_uploader("WAV/MP3/FLAC/OGG/M4A", type=["wav","mp3","flac","ogg","m4a"])
@@ -80,7 +84,8 @@ with st.sidebar:
     st.header("3) 出力")
     export_csv = st.checkbox("CSV出力（スペクトル特徴量）", value=True)
 
-st.title("シャント音 解析ビューア（STFT/PSD/HLPR）")
+# ---- メイン ----
+st.title("シャント音 解析ビューア（STFT/PSD/包絡/HLPR）")
 if up is None:
     st.info("左のサイドバーから音声ファイルをアップロードしてください。")
     st.stop()
@@ -109,60 +114,68 @@ if use_notch:
     x_proc = apply_notch(x_proc, sr, freq=float(notch_freq), q=float(notch_q))
 x_proc = apply_bandpass(x_proc, sr, bp_low, bp_high, order=bp_order)
 
-# 時間波形
+# ---- 時間波形 ----
 st.subheader("時間波形")
-explain_button("時間波形", "音声信号の全体の時間的な強弱やノイズを確認する基本的な可視化です。")
 fig, ax = plt.subplots(figsize=(11,3))
 ax.plot(t, x_proc, lw=0.6)
 ax.set_xlabel("Time [s]"); ax.set_ylabel("Amplitude")
 st.pyplot(fig); plt.close(fig)
 
-# HLPR
+# ---- HLPR計算 ----
 st.subheader("HLPR（高低周波ピーク比）")
-explain_button("HLPRとは？", "高周波帯域（500–700Hz）と低周波帯域（100–250Hz）のピーク振幅を比率化。高い値は血流の乱れを示唆します。")
 hlpr, high_peak, low_peak = calculate_hlpr(x_proc, sr)
 st.metric("HLPR値", f"{hlpr:.3f}")
-st.caption(f"高周波: 500–700 Hz / 低周波: 100–250 Hz")
-st.caption("※ HLPR = 高周波ピーク ÷ 低周波ピーク")
+st.caption(f"High peak (500–700 Hz): {high_peak:.2e}, Low peak (100–250 Hz): {low_peak:.2e}")
+st.caption("※ HLPRは高周波/低周波のピーク比。0.35以上でシャント異常の疑い。")
 if hlpr >= 0.35:
     st.error("⚠️ HLPRが0.35以上 → シャントトラブルの可能性があります")
 else:
     st.success("HLPRは正常範囲内です")
 
-# PSD
-st.subheader("Welch パワースペクトル密度（PSD）")
-explain_button("Welch PSDとは？", "時間信号を周波数成分に分解し、各周波数のエネルギー分布を表示します。ピークがある周波数帯が強いです。")
+# ---- Welch PSD ----
+st.subheader("Welch法によるPSD")
+explain_button("PSDとは？", """
+パワースペクトル密度（PSD）は、信号の周波数成分ごとのエネルギー分布を示します。
+Welch法では安定した推定が可能です。
+""")
 ff, pxx = compute_psd_welch(x_proc, sr)
 fig_psd, ax_psd = plt.subplots(figsize=(11,3))
 ax_psd.semilogy(ff, pxx)
-ax_psd.set_xlabel("Frequency [Hz]")
-ax_psd.set_ylabel("PSD")
+ax_psd.set_xlabel("Frequency [Hz]"); ax_psd.set_ylabel("PSD")
 st.pyplot(fig_psd); plt.close(fig_psd)
 
-# STFT
-F_stft, TT_stft, S_stft = compute_stft(x_proc, sr)
-
+# ---- STFTスペクトログラム（Linear） ----
 st.subheader("STFTスペクトログラム（Linear）")
-explain_button("STFTとは？", "音の時間変化と周波数成分を同時に可視化。横軸が時間、縦軸が周波数、色が強度を表します。")
-fig_stft_lin, ax_stft_lin = plt.subplots(figsize=(11, 3.5))
-im = ax_stft_lin.pcolormesh(TT_stft, F_stft, S_stft, shading="auto")
-ax_stft_lin.set_ylim(0, 600)
-ax_stft_lin.set_xlabel("Time [s]")
-ax_stft_lin.set_ylabel("Frequency [Hz]")
-st.pyplot(fig_stft_lin)
-plt.close(fig_stft_lin)
+explain_button("STFT（Linear）とは？", """
+Linearスケールでは、周波数軸が一定間隔で表示されます。
+- 主に低周波の変化やリズムを把握するのに有効です。
+""")
+F_stft, TT_stft, S_stft = compute_stft(x_proc, sr)
+fig_stft, ax_stft = plt.subplots(figsize=(11, 3.5))
+ax_stft.pcolormesh(TT_stft, F_stft, S_stft, shading="auto")
+ax_stft.set_ylim(0, 600)
+ax_stft.set_xlabel("Time [s]")
+ax_stft.set_ylabel("Frequency [Hz]")
+st.pyplot(fig_stft)
+plt.close(fig_stft)
 
+# ---- STFTスペクトログラム（Logスケール） ----
 st.subheader("STFTスペクトログラム（Logスケール）")
+explain_button("STFT（Log）とは？", """
+Logスケールでは周波数を対数的に圧縮して表示し、
+広範囲の周波数を一度に見渡せます。
+- 異常や高周波変化の検出に有効です。
+""")
 fig_stft_log, ax_stft_log = plt.subplots(figsize=(11, 3.5))
-im2 = ax_stft_log.pcolormesh(TT_stft, F_stft, S_stft, shading="auto")
+ax_stft_log.pcolormesh(TT_stft, F_stft, 10*np.log10(S_stft + 1e-9), shading="auto")
 ax_stft_log.set_yscale("log")
-ax_stft_log.set_ylim(max(10, min(F_stft)), min(600, max(F_stft)))
+ax_stft_log.set_ylim(10, sr//2)
 ax_stft_log.set_xlabel("Time [s]")
 ax_stft_log.set_ylabel("Frequency [Hz] (log)")
 st.pyplot(fig_stft_log)
 plt.close(fig_stft_log)
 
-# 特徴量
+# ---- 特徴量出力 ----
 spec_cent = librosa.feature.spectral_centroid(y=x_proc, sr=sr)[0]
 spec_bw   = librosa.feature.spectral_bandwidth(y=x_proc, sr=sr)[0]
 rolloff   = librosa.feature.spectral_rolloff(y=x_proc, sr=sr)[0]
