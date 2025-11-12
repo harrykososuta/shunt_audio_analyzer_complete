@@ -86,7 +86,7 @@ with st.sidebar:
     export_csv = st.checkbox("CSV出力（スペクトル特徴量）", value=True)
 
 # ---- メイン処理 ----
-st.title("シャント音 解析ビューア（STFT/PSD/包絡/HLPR）")
+st.title("シャント音 解析ビューア（STFT/PSD/HLPR）")
 if up is None:
     st.info("左のサイドバーから音声ファイルをアップロードしてください。")
     st.stop()
@@ -182,3 +182,4 @@ st.subheader("簡易スペクトル特徴量（+HLPR）")
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
