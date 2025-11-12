@@ -153,12 +153,14 @@ st.pyplot(fig_stft); plt.close(fig_stft)
 # ---- STFT Log ----
 st.subheader("STFTスペクトログラム（Logスケール）")
 explain_button("Logスケールとは？", "周波数軸を対数表示することで広範囲の特性を見やすくし、高周波の異常も検出しやすくなります。")
-fig_log, ax_log = plt.subplots(figsize=(11,3.5))
-ax_log.pcolormesh(TT_stft, F_stft, S_stft, shading="auto")
-ax_log.set_yscale("log"); ax_log.set_ylim(10, sr//2)
-ax_log.set_xlabel("Time [s]"); ax_log.set_ylabel("Frequency [Hz] (log)")
-st.pyplot(fig_log); plt.close(fig_log)
-
+fig_stft_log, ax_stft_log = plt.subplots(figsize=(11, 3.5))
+im2 = ax_stft_log.pcolormesh(TT_stft, F_stft, S_stft, shading="auto")
+ax_stft_log.set_yscale("log")
+ax_stft_log.set_ylim(max(10, min(F_stft)), min(600, max(F_stft)))
+ax_stft_log.set_xlabel("Time [s]")
+ax_stft_log.set_ylabel("Frequency [Hz] (log)")
+st.pyplot(fig_stft_log)
+plt.close(fig_stft_log)
 # ---- 特徴量 ----
 spec_cent = librosa.feature.spectral_centroid(y=x_proc, sr=sr)[0]
 spec_bw   = librosa.feature.spectral_bandwidth(y=x_proc, sr=sr)[0]
@@ -175,3 +177,4 @@ st.subheader("簡易スペクトル特徴量（+HLPR）")
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
