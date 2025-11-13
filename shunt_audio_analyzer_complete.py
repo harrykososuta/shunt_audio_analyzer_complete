@@ -179,11 +179,11 @@ rms = librosa.feature.rms(y=x_proc)[0]
 sflat = librosa.feature.spectral_flatness(y=x_proc)[0]
 feat = {
     "mean_centroid_Hz": float(np.mean(spec_cent)),
-    "mean_bandwidth_Hz": float(np.mean(spec_bw))
+    "mean_bandwidth_Hz": float(np.mean(spec_bw)),
     "median_rolloff_Hz": float(np.median(rolloff)),
     "zcr_mean": float(np.mean(zcr)),
     "rms_energy": float(np.mean(rms)),
-    "spectral_flatness": float(np.mean(sflat))
+    "spectral_flatness": float(np.mean(sflat)),
     "HLPR": float(hlpr)
 }
 st.subheader("簡易スペクトル特徴量（+HLPR）")
@@ -191,5 +191,6 @@ explain_button("各特徴量とは？", "- mean_centroid_Hz: スペクトル重�
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
 st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
 
 
