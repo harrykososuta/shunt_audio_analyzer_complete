@@ -25,7 +25,7 @@ st.set_page_config(page_title="Shunt Sound Analyzer - 完全版", layout="wide")
 
 # ---- UI小道具 ----
 def explain_button(title: str, body_md: str):
-    with st.expander(f"ℹ️ {title} の説明"):
+    with st.expander(f"\u2139\ufe0f {title} の説明"):
         st.markdown(body_md)
 
 # ---- DSP utils ----
@@ -80,7 +80,11 @@ with st.sidebar:
     bp_high = st.number_input("バンドパス上限 [Hz]", 50.0, 20000.0, 1200.0, 50.0)
     bp_order = st.slider("バンドパス次数", 2, 8, 4)
 
-    st.header("3) 出力")
+    st.header("3) STFT表示設定")
+    stft_lin_max = st.number_input("STFT Linear表示上限 [Hz]", 200.0, 5000.0, 600.0, 50.0)
+    stft_log_max = st.number_input("STFT Log表示上限 [Hz]", 500.0, 20000.0, 3000.0, 100.0)
+
+    st.header("4) 出力")
     export_csv = st.checkbox("CSV出力（スペクトル特徴量）", value=True)
 
 # ---- メイン ----
@@ -127,7 +131,7 @@ hlpr, high_peak, low_peak = calculate_hlpr(x_proc, sr)
 st.metric("HLPR値", f"{hlpr:.3f}")
 st.caption(f"High peak: {high_peak:.3f}, Low peak: {low_peak:.3f}")
 if hlpr >= 0.35:
-    st.error("⚠️ HLPRが0.35以上 → シャントトラブルの可能性あり")
+    st.error("\u26a0\ufe0f HLPRが0.35以上 → シャントトラブルの可能性あり")
 else:
     st.success("HLPRは正常範囲内です")
 
@@ -143,27 +147,21 @@ st.pyplot(fig_psd); plt.close(fig_psd)
 # ---- STFT Linear ----
 st.subheader("STFTスペクトログラム（Linear）")
 explain_button("STFTとは？の説明", "時間-周波数分析の一種。Linearは低周波の解析に向いています。")
-
-# STFTを取得
 F_stft, TT_stft, S_stft = compute_stft(x_proc, sr)
-
-# Log変換（振幅）
-S_log_amp = np.log10(S_stft + 1e-6)
-
-# プロット（Log振幅でコントラスト強調）
+lin_ylim = min(stft_lin_max, F_stft[-1]*1.1)
 fig_stft, ax_stft = plt.subplots(figsize=(11, 3.6))
 pcm = ax_stft.pcolormesh(
-    TT_stft, F_stft, S_log_amp,
+    TT_stft, F_stft, S_stft,
     shading="auto",
-    cmap="inferno",        # 高視認性カラーマップ
-    vmin=-3.5, vmax=0      # log振幅スケールに応じた範囲
+    cmap="plasma",
+    vmin=0.0005, vmax=0.015
 )
-ax_stft.set_ylim(0, 1000)
+ax_stft.set_ylim(0, lin_ylim)
 ax_stft.set_xlabel("Time [s]")
 ax_stft.set_ylabel("Frequency [Hz]")
-ax_stft.set_title("STFT Spectrogram (Linear, Log-Amplitude)")
+ax_stft.set_title("STFT Spectrogram (Linear, Amplitude)")
 cb = fig_stft.colorbar(pcm, ax=ax_stft)
-cb.set_label("Log-Amplitude")
+cb.set_label("Amplitude")
 st.pyplot(fig_stft)
 plt.close(fig_stft)
 
@@ -171,10 +169,11 @@ plt.close(fig_stft)
 st.subheader("STFTスペクトログラム（Logスケール）")
 explain_button("Logスケールとは？", "周波数軸を対数表示することで広範囲の特性を見やすくし、高周波の異常も検出しやすくなります。")
 S_db = 10 * np.log10(S_stft + 1e-6)
+log_ylim = min(stft_log_max, F_stft[-1]*1.1)
 fig_log, ax_log = plt.subplots(figsize=(11, 3.8))
 pcm2 = ax_log.pcolormesh(TT_stft, F_stft, S_db, shading="auto", cmap="jet")
 ax_log.set_yscale("log")
-ax_log.set_ylim(20, 3000)
+ax_log.set_ylim(max(20, F_stft[1]), log_ylim)
 ax_log.set_xlabel("Time [s]")
 ax_log.set_ylabel("Frequency [Hz] (log scale)")
 ax_log.set_title("STFT Spectrogram (Log Power)")
@@ -204,15 +203,3 @@ explain_button("各特徴量とは？", "- mean_centroid_Hz: スペクトル重�
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
-
-
-
-
-
-
-
-
-
-
-
-
