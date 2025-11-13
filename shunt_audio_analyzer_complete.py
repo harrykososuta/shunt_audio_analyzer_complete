@@ -161,7 +161,7 @@ S_db = 10 * np.log10(S_stft + 1e-6)
 fig_log, ax_log = plt.subplots(figsize=(11, 3.8))
 pcm2 = ax_log.pcolormesh(TT_stft, F_stft, S_db, shading="auto", cmap="jet")
 ax_log.set_yscale("log")
-ax_log.set_ylim(20, 1500)
+ax_log.set_ylim(20, 2000)
 ax_log.set_xlabel("Time [s]")
 ax_log.set_ylabel("Frequency [Hz] (log scale)")
 ax_log.set_title("STFT Spectrogram (Log Power)")
@@ -191,6 +191,7 @@ explain_button("各特徴量とは？", "- mean_centroid_Hz: スペクトル重�
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
 
 
 
