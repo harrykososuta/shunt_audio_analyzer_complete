@@ -1,11 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-シャント音 解析ビューア 完全版（Cloud安定版）
- - 入力: MP4/WAV など（MP4は音声抽出→解析）
- - 前処理: ノッチ(50/60Hz), バンドパス, リサンプリング
- - 可視化: 時間波形, STFTスペクトログラム(Linear/Log)
- - 解析: 帯域包絡(Hilbert), Welch PSD, 簡易特徴量, HLPR比
- - UI: 各解析に「説明」ボタン（expander表示）
+シャント音 解析ビューア 完全版（HLPR FFT視覚化付き）
 """
 
 from pathlib import Path
@@ -25,7 +20,7 @@ st.set_page_config(page_title="Shunt Sound Analyzer - 完全版", layout="wide")
 
 # ---- UI小道具 ----
 def explain_button(title: str, body_md: str):
-    with st.expander(f"\u2139\ufe0f {title} の説明"):
+    with st.expander(f"ℹ️ {title} の説明"):
         st.markdown(body_md)
 
 # ---- DSP utils ----
@@ -66,6 +61,19 @@ def calculate_hlpr(x, fs, high_band=(500, 700), low_band=(100, 250), order=4):
     hlpr = high_peak / (low_peak + 1e-9)
     return hlpr, high_peak, low_peak
 
+def calculate_hlpr_fft(x, fs, low_band=(100, 250), high_band=(500, 700)):
+    freqs = np.fft.rfftfreq(len(x), d=1/fs)
+    fft_spectrum = np.abs(np.fft.rfft(x))
+
+    idx_low = np.where((freqs >= low_band[0]) & (freqs <= low_band[1]))
+    idx_high = np.where((freqs >= high_band[0]) & (freqs <= high_band[1]))
+
+    low_peak = np.max(fft_spectrum[idx_low])
+    high_peak = np.max(fft_spectrum[idx_high])
+    hlpr_fft = high_peak / (low_peak + 1e-9)
+
+    return hlpr_fft, freqs, fft_spectrum, low_peak, high_peak
+
 # ---- サイドバー ----
 with st.sidebar:
     st.header("1) 音声の読み込み")
@@ -80,15 +88,11 @@ with st.sidebar:
     bp_high = st.number_input("バンドパス上限 [Hz]", 50.0, 20000.0, 1200.0, 50.0)
     bp_order = st.slider("バンドパス次数", 2, 8, 4)
 
-    st.header("3) STFT表示設定")
-    stft_lin_max = st.number_input("STFT Linear表示上限 [Hz]", 200.0, 5000.0, 600.0, 50.0)
-    stft_log_max = st.number_input("STFT Log表示上限 [Hz]", 500.0, 20000.0, 3000.0, 100.0)
-
-    st.header("4) 出力")
+    st.header("3) 出力")
     export_csv = st.checkbox("CSV出力（スペクトル特徴量）", value=True)
 
 # ---- メイン ----
-st.title("シャント音 解析ビューア（STFT/PSD/HLPR）")
+st.title("シャント音 解析ビューア（STFT/PSD/HLPR/FFT）")
 if up is None:
     st.info("左のサイドバーから音声ファイルをアップロードしてください。")
     st.stop()
@@ -124,16 +128,30 @@ ax.plot(t, x_proc, lw=0.6)
 ax.set_xlabel("Time [s]"); ax.set_ylabel("Amplitude")
 st.pyplot(fig); plt.close(fig)
 
-# ---- HLPR ----
+# ---- HLPR（Hilbert包絡）----
 st.subheader("HLPR（高低周波ピーク比）")
 explain_button("HLPRとは？", "高周波（例: 500–700Hz）と低周波（例: 100–250Hz）の包絡線ピーク比率を取り、シャント異常を検出する指標です。")
 hlpr, high_peak, low_peak = calculate_hlpr(x_proc, sr)
-st.metric("HLPR値", f"{hlpr:.3f}")
+st.metric("HLPR値（Hilbert包絡）", f"{hlpr:.3f}")
 st.caption(f"High peak: {high_peak:.3f}, Low peak: {low_peak:.3f}")
 if hlpr >= 0.35:
-    st.error("\u26a0\ufe0f HLPRが0.35以上 → シャントトラブルの可能性あり")
+    st.error("⚠️ HLPRが0.35以上 → シャントトラブルの可能性あり")
 else:
     st.success("HLPRは正常範囲内です")
+
+# ---- FFT HLPR 可視化 ----
+st.subheader("FFTによるHLPR解析と視覚化")
+hlpr_fft, freqs, spectrum, lpk, hpk = calculate_hlpr_fft(x_proc, sr)
+fig_fft, ax_fft = plt.subplots(figsize=(10, 4))
+ax_fft.plot(freqs, spectrum, lw=0.8)
+ax_fft.set_xlim(0, 1000)
+ax_fft.set_xlabel("Frequency [Hz]")
+ax_fft.set_ylabel("Amplitude")
+ax_fft.axvspan(100, 250, color='blue', alpha=0.1, label="Low Band")
+ax_fft.axvspan(500, 700, color='red', alpha=0.1, label="High Band")
+ax_fft.set_title(f"FFT HLPR = {hlpr_fft:.3f}  (H / L = {hpk:.3f} / {lpk:.3f})")
+ax_fft.legend()
+st.pyplot(fig_fft); plt.close(fig_fft)
 
 # ---- Welch PSD ----
 st.subheader("パワースペクトル密度（Welch法）")
@@ -146,17 +164,14 @@ st.pyplot(fig_psd); plt.close(fig_psd)
 
 # ---- STFT Linear ----
 st.subheader("STFTスペクトログラム（Linear）")
-explain_button("STFTとは？の説明", "時間-周波数分析の一種。Linearは低周波の解析に向いています。")
 F_stft, TT_stft, S_stft = compute_stft(x_proc, sr)
-lin_ylim = min(stft_lin_max, F_stft[-1]*1.1)
 fig_stft, ax_stft = plt.subplots(figsize=(11, 3.6))
 pcm = ax_stft.pcolormesh(
     TT_stft, F_stft, S_stft,
-    shading="auto",
-    cmap="plasma",
+    shading="auto", cmap="plasma",
     vmin=0.0005, vmax=0.015
 )
-ax_stft.set_ylim(0, lin_ylim)
+ax_stft.set_ylim(0, min(600, sr//2))
 ax_stft.set_xlabel("Time [s]")
 ax_stft.set_ylabel("Frequency [Hz]")
 ax_stft.set_title("STFT Spectrogram (Linear, Amplitude)")
@@ -169,11 +184,10 @@ plt.close(fig_stft)
 st.subheader("STFTスペクトログラム（Logスケール）")
 explain_button("Logスケールとは？", "周波数軸を対数表示することで広範囲の特性を見やすくし、高周波の異常も検出しやすくなります。")
 S_db = 10 * np.log10(S_stft + 1e-6)
-log_ylim = min(stft_log_max, F_stft[-1]*1.1)
 fig_log, ax_log = plt.subplots(figsize=(11, 3.8))
 pcm2 = ax_log.pcolormesh(TT_stft, F_stft, S_db, shading="auto", cmap="jet")
 ax_log.set_yscale("log")
-ax_log.set_ylim(max(20, F_stft[1]), log_ylim)
+ax_log.set_ylim(20, sr//2)
 ax_log.set_xlabel("Time [s]")
 ax_log.set_ylabel("Frequency [Hz] (log scale)")
 ax_log.set_title("STFT Spectrogram (Log Power)")
@@ -196,11 +210,10 @@ feat = {
     "zcr_mean": float(np.mean(zcr)),
     "rms_energy": float(np.mean(rms)),
     "spectral_flatness": float(np.mean(sflat)),
-    "HLPR": float(hlpr)
+    "HLPR_hilbert": float(hlpr),
+    "HLPR_fft": float(hlpr_fft)
 }
 st.subheader("簡易スペクトル特徴量（+HLPR）")
-explain_button("各特徴量とは？", "- mean_centroid_Hz: スペクトル重心。高周波優勢で値が高い\n- mean_bandwidth_Hz: スペクトルの広がり\n- median_rolloff_Hz: 85%エネルギーを含む周波数\n- zcr_mean: ゼロクロッシング率。高周波/ノイズ傾向を示す\n- rms_energy: 平均振幅（音のエネルギー量）\n- spectral_flatness: フラットさ。ノイズ的かトーン的か\n- HLPR: 高低周波ピーク比（シャント異常検知）")
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
-
