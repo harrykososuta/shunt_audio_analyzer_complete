@@ -143,16 +143,21 @@ st.pyplot(fig_psd); plt.close(fig_psd)
 # ---- STFT Linear ----
 st.subheader("STFTスペクトログラム（Linear）")
 explain_button("STFTとは？の説明", "時間-周波数分析の一種。Linearは低周波の解析に向いています。")
-F_stft, TT_stft, S_stft = compute_stft(x_proc, sr)
-fig_stft, ax_stft = plt.subplots(figsize=(11, 3.5))
-pcm = ax_stft.pcolormesh(TT_stft, F_stft, S_stft, shading="auto", cmap="viridis")
-ax_stft.set_ylim(0, 600)
+
+# 対数変換で見やすく
+S_lin_db = 10 * np.log10(S_stft + 1e-8)
+
+fig_stft, ax_stft = plt.subplots(figsize=(11, 3.8))
+pcm = ax_stft.pcolormesh(TT_stft, F_stft, S_lin_db, shading="auto", cmap="inferno", vmin=-60, vmax=0)
+ax_stft.set_ylim(50, 600)  # 下限を切ってノイズ減らす
 ax_stft.set_xlabel("Time [s]")
 ax_stft.set_ylabel("Frequency [Hz]")
+ax_stft.set_title("STFT Spectrogram (Linear, Log Power)")
 cb = fig_stft.colorbar(pcm, ax=ax_stft)
-cb.set_label("Amplitude")
+cb.set_label("Power [dB]")
 st.pyplot(fig_stft)
 plt.close(fig_stft)
+
 
 # ---- STFT Log ----
 st.subheader("STFTスペクトログラム（Logスケール）")
@@ -191,6 +196,7 @@ explain_button("各特徴量とは？", "- mean_centroid_Hz: スペクトル重�
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
 
 
 
