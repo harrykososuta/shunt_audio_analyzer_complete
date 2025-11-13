@@ -135,7 +135,7 @@ hlpr, high_peak, low_peak = calculate_hlpr(x_proc, sr)
 st.metric("HLPR値（Hilbert包絡）", f"{hlpr:.3f}")
 st.caption(f"High peak: {high_peak:.3f}, Low peak: {low_peak:.3f}")
 if hlpr >= 0.35:
-    st.error("⚠️ HLPRが0.35以上 → シャントトラブルの可能性あり")
+    st.error("⚠️ HLPRが高値を示しています。血流異常の可能性に注意が必要です。")
 else:
     st.success("HLPRは正常範囲内です")
 
@@ -217,3 +217,4 @@ st.subheader("簡易スペクトル特徴量（+HLPR）")
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
