@@ -190,7 +190,8 @@ st.subheader("簡易スペクトル特徴量（+HLPR）")
 explain_button("各特徴量とは？", "- mean_centroid_Hz: スペクトル重心。高周波優勢で値が高い\n- mean_bandwidth_Hz: スペクトルの広がり\n- median_rolloff_Hz: 85%エネルギーを含む周波数\n- zcr_mean: ゼロクロッシング率。高周波/ノイズ傾向を示す\n- rms_energy: 平均振幅（音のエネルギー量）\n- spectral_flatness: フラットさ。ノイズ的かトーン的か\n- HLPR: 高低周波ピーク比（シャント異常検知）")
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
-st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+    st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
 
 
 
