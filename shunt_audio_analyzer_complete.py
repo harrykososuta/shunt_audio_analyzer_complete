@@ -144,21 +144,23 @@ st.pyplot(fig_psd); plt.close(fig_psd)
 st.subheader("STFTスペクトログラム（Linear）")
 explain_button("STFTとは？の説明", "時間-周波数分析の一種。Linearは低周波の解析に向いています。")
 
-# まず STFT を計算
+# STFTを取得
 F_stft, TT_stft, S_stft = compute_stft(x_proc, sr)
 
-# 対数パワーに変換（Amplitude → dB）
-S_lin_db = 10 * np.log10(S_stft + 1e-8)
-
-# プロット
-fig_stft, ax_stft = plt.subplots(figsize=(11, 3.8))
-pcm = ax_stft.pcolormesh(TT_stft, F_stft, S_lin_db, shading="auto", cmap="inferno", vmin=-60, vmax=0)
-ax_stft.set_ylim(50, 600)  # ノイズカット
+# プロット（Amplitude表示、視認性向上）
+fig_stft, ax_stft = plt.subplots(figsize=(11, 3.6))
+pcm = ax_stft.pcolormesh(
+    TT_stft, F_stft, S_stft,
+    shading="auto",
+    cmap="plasma",          # 高コントラストで視認性の良いカラーマップ
+    vmin=0.0005, vmax=0.015  # コントラスト調整（データに応じて微調整してもOK）
+)
+ax_stft.set_ylim(0, 600)
 ax_stft.set_xlabel("Time [s]")
 ax_stft.set_ylabel("Frequency [Hz]")
-ax_stft.set_title("STFT Spectrogram (Linear, Log Power)")
+ax_stft.set_title("STFT Spectrogram (Linear, Amplitude)")
 cb = fig_stft.colorbar(pcm, ax=ax_stft)
-cb.set_label("Power [dB]")
+cb.set_label("Amplitude")
 st.pyplot(fig_stft)
 plt.close(fig_stft)
 
@@ -199,6 +201,7 @@ explain_button("各特徴量とは？", "- mean_centroid_Hz: スペクトル重�
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
 
 
 
