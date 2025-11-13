@@ -158,7 +158,7 @@ pcm = ax_stft.pcolormesh(
     cmap="inferno",        # 高視認性カラーマップ
     vmin=-3.5, vmax=0      # log振幅スケールに応じた範囲
 )
-ax_stft.set_ylim(0, 600)
+ax_stft.set_ylim(0, 1000)
 ax_stft.set_xlabel("Time [s]")
 ax_stft.set_ylabel("Frequency [Hz]")
 ax_stft.set_title("STFT Spectrogram (Linear, Log-Amplitude)")
@@ -204,6 +204,7 @@ explain_button("各特徴量とは？", "- mean_centroid_Hz: スペクトル重�
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
 
 
 
