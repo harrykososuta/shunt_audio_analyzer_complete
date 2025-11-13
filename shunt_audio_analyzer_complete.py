@@ -214,7 +214,20 @@ feat = {
     "HLPR_fft": float(hlpr_fft)
 }
 st.subheader("簡易スペクトル特徴量（+HLPR）")
+explain_button("各特徴量とは？", 
+"""
+- **mean_centroid_Hz**: スペクトル重心（重心周波数）。高周波エネルギーが強いと値が高くなります。
+- **mean_bandwidth_Hz**: スペクトルの周波数帯域幅（広がり）。音が広範囲に分布しているかを示します。
+- **median_rolloff_Hz**: スペクトルロールオフ。エネルギーの85%を含む周波数。音の明瞭さや高周波成分に敏感です。
+- **zcr_mean**: ゼロクロッシング率（ZCR）。波形が0を何度通過するか。高いとノイズ成分が強い可能性があります。
+- **rms_energy**: RMSエネルギー（音圧レベルの平均）。音の強さを表します。
+- **spectral_flatness**: スペクトルのフラットさ。ノイズ的（高）かトーン的（低）かを示します。
+- **HLPR_hilbert**: バンド包絡を使った高周波/低周波のピーク比（500–700Hz / 100–250Hz）。高値は血流異常の可能性を示唆します。
+- **HLPR_fft**: FFTによる周波数スペクトルからの高低ピーク比。MATLAB論文に基づいた手法です。
+"""
+)
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
 
