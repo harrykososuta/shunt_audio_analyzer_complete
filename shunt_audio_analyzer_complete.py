@@ -172,19 +172,23 @@ plt.close(fig_log)
 
 # ---- 特徴量 ----
 spec_cent = librosa.feature.spectral_centroid(y=x_proc, sr=sr)[0]
-spec_bw   = librosa.feature.spectral_bandwidth(y=x_proc, sr=sr)[0]
-rolloff   = librosa.feature.spectral_rolloff(y=x_proc, sr=sr)[0]
-zcr       = librosa.feature.zero_crossing_rate(y=x_proc)[0]
+spec_bw = librosa.feature.spectral_bandwidth(y=x_proc, sr=sr)[0]
+rolloff = librosa.feature.spectral_rolloff(y=x_proc, sr=sr)[0]
+zcr = librosa.feature.zero_crossing_rate(y=x_proc)[0]
+rms = librosa.feature.rms(y=x_proc)[0]
+sflat = librosa.feature.spectral_flatness(y=x_proc)[0]
 feat = {
-    "mean_centroid_Hz": float(np.mean(spec_cent)),
-    "mean_bandwidth_Hz": float(np.mean(spec_bw)),
-    "median_rolloff_Hz": float(np.median(rolloff)),
-    "zcr_mean": float(np.mean(zcr)),
-    "HLPR": float(hlpr)
+"mean_centroid_Hz": float(np.mean(spec_cent)),
+"mean_bandwidth_Hz": float(np.mean(spec_bw)),
+"median_rolloff_Hz": float(np.median(rolloff)),
+"zcr_mean": float(np.mean(zcr)),
+"rms_energy": float(np.mean(rms)),
+"spectral_flatness": float(np.mean(sflat)),
+"HLPR": float(hlpr)
 }
 st.subheader("簡易スペクトル特徴量（+HLPR）")
+explain_button("各特徴量とは？", "- mean_centroid_Hz: スペクトル重心。高周波優勢で値が高い\n- mean_bandwidth_Hz: スペクトルの広がり\n- median_rolloff_Hz: 85%エネルギーを含む周波数\n- zcr_mean: ゼロクロッシング率。高周波/ノイズ傾向を示す\n- rms_energy: 平均振幅（音のエネルギー量）\n- spectral_flatness: フラットさ。ノイズ的かトーン的か\n- HLPR: 高低周波ピーク比（シャント異常検知）")
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
-    st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
-
+st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
 
