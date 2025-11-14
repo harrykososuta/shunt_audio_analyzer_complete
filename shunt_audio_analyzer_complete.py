@@ -102,13 +102,16 @@ with col2:
     site = st.radio("測定場所", ["吻合部", "その他"], horizontal=True)
     site_comment = "" if site != "その他" else st.text_input("その他の測定場所を入力してください")
 
-# === 1st 音声ファイル ===
-st.subheader("音声ファイル1")
-up1 = st.file_uploader("音声ファイル1 (WAV/MP3/FLAC/OGG/M4A)", type=["wav","mp3","flac","ogg","m4a"])
+# ===音声ファイル ===
+col1, col2 = st.columns(2)
 
-# === 2nd 音声ファイル ===
-st.subheader("音声ファイル2（比較用・任意）")
-up2 = st.file_uploader("音声ファイル2 (比較用)", type=["wav","mp3","flac","ogg","m4a"], key="second")
+with col1:
+    st.subheader("音声ファイル1")
+    up1 = st.file_uploader("音声ファイル1 (WAV/MP3/FLAC/OGG/M4A)", type=["wav", "mp3", "flac", "ogg", "m4a"])
+
+with col2:
+    st.subheader("音声ファイル2（比較用・任意）")
+    up2 = st.file_uploader("音声ファイル2 (比較用)", type=["wav", "mp3", "flac", "ogg", "m4a"], key="second")
 
 if up1 is None:
     st.warning("音声ファイル1をアップロードしてください")
@@ -345,3 +348,4 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
