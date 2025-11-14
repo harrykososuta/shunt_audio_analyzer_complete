@@ -255,6 +255,26 @@ if up2:
         fft_diff = res1["HLPR_fft"] - res2["HLPR_fft"]
         fft_pct = fft_diff / res1["HLPR_fft"] * 100 if res1["HLPR_fft"] else 0
         st.metric("FFT HLPR 差", f"{fft_diff:.3f}", delta=f"{fft_pct:.1f} %")    
+    
+    st.subheader("HLPR以外の音響特徴 差分比較")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        centroid_diff = res1["mean_centroid_Hz"] - res2["mean_centroid_Hz"]
+        centroid_pct = centroid_diff / res1["mean_centroid_Hz"] * 100 if res1["mean_centroid_Hz"] else 0
+        st.metric("スペクトル重心 差", f"{centroid_diff:.1f} Hz", delta=f"{centroid_pct:.1f} %")
+
+    with col2:
+        bandwidth_diff = res1["mean_bandwidth_Hz"] - res2["mean_bandwidth_Hz"]
+        bandwidth_pct = bandwidth_diff / res1["mean_bandwidth_Hz"] * 100 if res1["mean_bandwidth_Hz"] else 0
+        st.metric("帯域幅 差", f"{bandwidth_diff:.1f} Hz", delta=f"{bandwidth_pct:.1f} %")
+
+    with col3:
+        flatness_diff = res1["spectral_flatness"] - res2["spectral_flatness"]
+        flatness_pct = flatness_diff / res1["spectral_flatness"] * 100 if res1["spectral_flatness"] else 0
+        st.metric("スペクトル平坦度 差", f"{flatness_diff:.3f}", delta=f"{flatness_pct:.1f} %")
+
 else:
     # ファイル1だけ → 通常表示
     res1 = analyze_audio(x1, sr1, label="音声ファイル1")
@@ -369,6 +389,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
