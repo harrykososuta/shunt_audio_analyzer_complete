@@ -242,27 +242,41 @@ if up2:
         res2 = analyze_audio(x2, sr2, label="音声ファイル2")
         results.append(res2)
 
-    # --- HLPR差分を白枠＋横並びで表示 ---
     st.subheader("HLPR 差分比較")
+
+    # 差分計算
+    hilbert_diff = res1["HLPR_hilbert"] - res2["HLPR_hilbert"]
+    hilbert_pct = hilbert_diff / res1["HLPR_hilbert"] * 100 if res1["HLPR_hilbert"] else 0
     
-    with st.container():
-        st.markdown("""
-        <div style="border: 1px solid #ccc; padding: 1rem; border-radius: 10px; background-color: #fff;">
-        """, unsafe_allow_html=True)
+    fft_diff = res1["HLPR_fft"] - res2["HLPR_fft"]
+    fft_pct = fft_diff / res1["HLPR_fft"] * 100 if res1["HLPR_fft"] else 0
     
-        col1, col2 = st.columns(2)
-    
-        with col1:
-            hilbert_diff = res1["HLPR_hilbert"] - res2["HLPR_hilbert"]
-            hilbert_pct = hilbert_diff / res1["HLPR_hilbert"] * 100 if res1["HLPR_hilbert"] else 0
-            st.metric("Hilbert 差", f"{hilbert_diff:.3f}", delta=f"{hilbert_pct:.1f} %")
-    
-        with col2:
-            fft_diff = res1["HLPR_fft"] - res2["HLPR_fft"]
-            fft_pct = fft_diff / res1["HLPR_fft"] * 100 if res1["HLPR_fft"] else 0
-            st.metric("FFT HLPR 差", f"{fft_diff:.3f}", delta=f"{fft_pct:.1f} %")
-    
-        st.markdown("</div>", unsafe_allow_html=True)
+    # 囲み＋横並び表示
+    st.markdown(
+        """
+        <div style="border: 1px solid #ccc; padding: 1.5rem; border-radius: 12px; background-color: white;">
+        <div style="display: flex; justify-content: space-between;">
+            <div style="flex: 1; padding-right: 1rem;">
+                <h4>Hilbert 差</h4>
+                <p style="font-size: 2em; margin: 0;">{hlpr_val:.3f}</p>
+                <p style="color: red;">↓ {hlpr_pct:.1f} %</p>
+            </div>
+            <div style="flex: 1;">
+                <h4>FFT HLPR 差</h4>
+                <p style="font-size: 2em; margin: 0;">{fft_val:.3f}</p>
+                <p style="color: red;">↓ {fft_pct:.1f} %</p>
+            </div>
+        </div>
+        </div>
+        """.format(
+            hlpr_val=hilbert_diff,
+            hlpr_pct=hilbert_pct,
+            fft_val=fft_diff,
+            fft_pct=fft_pct
+        ),
+        unsafe_allow_html=True
+    )
+
 
 else:
     # ファイル1だけ → 通常表示
@@ -378,6 +392,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
