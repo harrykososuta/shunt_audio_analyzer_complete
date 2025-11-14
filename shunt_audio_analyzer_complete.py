@@ -245,11 +245,11 @@ if up2:
     st.subheader("HLPR 差分比較")
 
     with st.container():
-    　st.markdown("""
-    　<div style="border: 1px solid #ccc; padding: 1rem; border-radius: 10px; background-color: #fff;">
-    　""", unsafe_allow_html=True)
+    　　st.markdown("""
+    　　<div style="border: 1px solid #ccc; padding: 1rem; border-radius: 10px; background-color: #fff;">
+    　　""", unsafe_allow_html=True)
 
-    　col1, col2 = st.columns(2)
+    　　col1, col2 = st.columns(2)
 
     　with col1:
       　  hilbert_diff = res1["HLPR_hilbert"] - res2["HLPR_hilbert"]
@@ -374,6 +374,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
