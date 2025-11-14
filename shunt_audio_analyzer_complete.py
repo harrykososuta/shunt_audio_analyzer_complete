@@ -250,6 +250,8 @@ else:
 # ===== 特徴量を res に追加する処理（必ずここで全resultsに追加） =====
 for res in results:
     label = res["label"]
+    res["x_proc"] = x_proc
+    res["sr"] = sr
     hlpr = res["HLPR_hilbert"]
     hlpr_fft = res["HLPR_fft"]
 
@@ -413,6 +415,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
