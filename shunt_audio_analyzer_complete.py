@@ -90,7 +90,7 @@ with st.sidebar:
     export_csv = st.checkbox("CSV出力（全解析結果）", value=True)
 
 # ---- メイン ----
-st.title("シャント音 解析ビューア（STFT/PSD/HLPR/FFT + 2ファイル比較）")
+st.title("シャント音 解析ビューア（STFT/PSD/HLPR/FFT）")
 
 # === 基本情報入力 ===
 st.subheader("基本情報の入力")
@@ -416,6 +416,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
