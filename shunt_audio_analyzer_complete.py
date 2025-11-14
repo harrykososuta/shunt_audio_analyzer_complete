@@ -250,8 +250,6 @@ else:
 # ===== 特徴量を res に追加する処理（必ずここで全resultsに追加） =====
 for res in results:
     label = res["label"]
-    res["x_proc"] = x_proc
-    res["sr"] = sr
     hlpr = res["HLPR_hilbert"]
     hlpr_fft = res["HLPR_fft"]
 
@@ -333,8 +331,6 @@ else:
 # ------- 特徴量抽出はこの位置で -------
 for res in results:
     label = res["label"]
-    res["x_proc"] = x_proc
-    res["sr"] = sr
     hlpr = res["HLPR_hilbert"]
     hlpr_fft = res["HLPR_fft"]
 
@@ -373,6 +369,7 @@ for res in results:
 
 if export_csv and results:
     df_csv = pd.DataFrame(results)
+    df_csv = df_csv.drop(columns=["x_proc", "sr"], errors="ignore")
 
     st.subheader("簡易スペクトル特徴量（+HLPR + 血流指標）")
     explain_button("各特徴量とは？（シャント評価）", 
@@ -417,6 +414,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
