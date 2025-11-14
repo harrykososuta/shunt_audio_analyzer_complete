@@ -232,6 +232,10 @@ zcr = librosa.feature.zero_crossing_rate(y=x_proc)[0]
 rms = librosa.feature.rms(y=x_proc)[0]
 sflat = librosa.feature.spectral_flatness(y=x_proc)[0]
 feat = {
+    "shunt_type": ",".join(shunt_type),
+    "sex": sex,
+    "site": site,
+    "site_comment": site_comment,
     "mean_centroid_Hz": float(np.mean(spec_cent)),
     "mean_bandwidth_Hz": float(np.mean(spec_bw)),
     "median_rolloff_Hz": float(np.median(rolloff)),
@@ -280,6 +284,7 @@ explain_button("各特徴量とは？（シャント評価）",
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
 
 
 
