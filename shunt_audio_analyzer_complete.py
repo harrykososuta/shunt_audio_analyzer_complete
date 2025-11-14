@@ -242,10 +242,27 @@ if up2:
         res2 = analyze_audio(x2, sr2, label="音声ファイル2")
         results.append(res2)
 
-    # 差分表示（中央に）
+    # --- HLPR差分を白枠＋横並びで表示 ---
     st.subheader("HLPR 差分比較")
-    st.metric("HLPR Hilbert 差", f"{res1['HLPR_hilbert'] - res2['HLPR_hilbert']:.3f}")
-    st.metric("HLPR FFT 差", f"{res1['HLPR_fft'] - res2['HLPR_fft']:.3f}")
+    
+    with st.container():
+        st.markdown("""
+        <div style="border: 1px solid #ccc; padding: 1rem; border-radius: 10px; background-color: #fff;">
+        """, unsafe_allow_html=True)
+    
+        col1, col2 = st.columns(2)
+    
+        with col1:
+            hilbert_diff = res1["HLPR_hilbert"] - res2["HLPR_hilbert"]
+            hilbert_pct = hilbert_diff / res1["HLPR_hilbert"] * 100 if res1["HLPR_hilbert"] else 0
+            st.metric("Hilbert 差", f"{hilbert_diff:.3f}", delta=f"{hilbert_pct:.1f} %")
+    
+        with col2:
+            fft_diff = res1["HLPR_fft"] - res2["HLPR_fft"]
+            fft_pct = fft_diff / res1["HLPR_fft"] * 100 if res1["HLPR_fft"] else 0
+            st.metric("FFT HLPR 差", f"{fft_diff:.3f}", delta=f"{fft_pct:.1f} %")
+    
+        st.markdown("</div>", unsafe_allow_html=True)
 
 else:
     # ファイル1だけ → 通常表示
@@ -361,5 +378,6 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
