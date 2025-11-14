@@ -242,20 +242,52 @@ if up2:
         res2 = analyze_audio(x2, sr2, label="音声ファイル2")
         results.append(res2)
 
+else:
+    # ファイル1だけ → 通常表示
+    res1 = analyze_audio(x1, sr1, label="音声ファイル1")
+    results.append(res1)
+
+# ===== 特徴量を res に追加する処理（必ずここで全resultsに追加） =====
+for res in results:
+    label = res["label"]
+    x_proc = res["x_proc"]
+    sr = res["sr"]
+    hlpr = res["HLPR_hilbert"]
+    hlpr_fft = res["HLPR_fft"]
+
+    spec_cent = librosa.feature.spectral_centroid(y=x_proc, sr=sr)[0]
+    spec_bw = librosa.feature.spectral_bandwidth(y=x_proc, sr=sr)[0]
+    rolloff = librosa.feature.spectral_rolloff(y=x_proc, sr=sr)[0]
+    zcr = librosa.feature.zero_crossing_rate(y=x_proc)[0]
+    rms = librosa.feature.rms(y=x_proc)[0]
+    sflat = librosa.feature.spectral_flatness(y=x_proc)[0]
+
+    feat = {
+        "mean_centroid_Hz": float(np.mean(spec_cent)),
+        "mean_bandwidth_Hz": float(np.mean(spec_bw)),
+        "median_rolloff_Hz": float(np.median(rolloff)),
+        "zcr_mean": float(np.mean(zcr)),
+        "rms_energy": float(np.mean(rms)),
+        "spectral_flatness": float(np.mean(sflat)),
+    }
+    res.update(feat)
+
+# ===== 差分比較表示（2ファイルがある場合のみ） =====
+if up2:
     st.subheader("HLPR 差分比較")
 
     col1, col2 = st.columns(2)
-    
+
     with col1:
         hilbert_diff = res1["HLPR_hilbert"] - res2["HLPR_hilbert"]
         hilbert_pct = hilbert_diff / res1["HLPR_hilbert"] * 100 if res1["HLPR_hilbert"] else 0
         st.metric("Hilbert 差", f"{hilbert_diff:.3f}", delta=f"{hilbert_pct:.1f} %")
-    
+
     with col2:
         fft_diff = res1["HLPR_fft"] - res2["HLPR_fft"]
         fft_pct = fft_diff / res1["HLPR_fft"] * 100 if res1["HLPR_fft"] else 0
-        st.metric("FFT HLPR 差", f"{fft_diff:.3f}", delta=f"{fft_pct:.1f} %")    
-    
+        st.metric("FFT HLPR 差", f"{fft_diff:.3f}", delta=f"{fft_pct:.1f} %")
+
     st.subheader("HLPR以外の音響特徴 差分比較")
 
     col1, col2, col3 = st.columns(3)
@@ -275,10 +307,6 @@ if up2:
         flatness_pct = flatness_diff / res1["spectral_flatness"] * 100 if res1["spectral_flatness"] else 0
         st.metric("スペクトル平坦度 差", f"{flatness_diff:.3f}", delta=f"{flatness_pct:.1f} %")
 
-else:
-    # ファイル1だけ → 通常表示
-    res1 = analyze_audio(x1, sr1, label="音声ファイル1")
-    results.append(res1)
 
 # ---- シャント機能評価 入力フォーム ----
 st.subheader("シャント評価パラメータの入力")
@@ -389,6 +417,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
