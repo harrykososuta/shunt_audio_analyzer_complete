@@ -333,6 +333,8 @@ else:
 # ------- 特徴量抽出はこの位置で -------
 for res in results:
     label = res["label"]
+    res["x_proc"] = x_proc
+    res["sr"] = sr
     hlpr = res["HLPR_hilbert"]
     hlpr_fft = res["HLPR_fft"]
 
@@ -415,6 +417,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
