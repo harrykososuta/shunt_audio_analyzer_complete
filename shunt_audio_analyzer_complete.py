@@ -251,33 +251,6 @@ if up2:
     fft_diff = res1["HLPR_fft"] - res2["HLPR_fft"]
     fft_pct = fft_diff / res1["HLPR_fft"] * 100 if res1["HLPR_fft"] else 0
     
-    # 囲み＋横並び表示
-    st.markdown(
-        """
-        <div style="border: 1px solid #ccc; padding: 1.5rem; border-radius: 12px; background-color: white;">
-        <div style="display: flex; justify-content: space-between;">
-            <div style="flex: 1; padding-right: 1rem;">
-                <h4>Hilbert 差</h4>
-                <p style="font-size: 2em; margin: 0;">{hlpr_val:.3f}</p>
-                <p style="color: red;">↓ {hlpr_pct:.1f} %</p>
-            </div>
-            <div style="flex: 1;">
-                <h4>FFT HLPR 差</h4>
-                <p style="font-size: 2em; margin: 0;">{fft_val:.3f}</p>
-                <p style="color: red;">↓ {fft_pct:.1f} %</p>
-            </div>
-        </div>
-        </div>
-        """.format(
-            hlpr_val=hilbert_diff,
-            hlpr_pct=hilbert_pct,
-            fft_val=fft_diff,
-            fft_pct=fft_pct
-        ),
-        unsafe_allow_html=True
-    )
-
-
 else:
     # ファイル1だけ → 通常表示
     res1 = analyze_audio(x1, sr1, label="音声ファイル1")
@@ -392,6 +365,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
