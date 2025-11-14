@@ -20,7 +20,7 @@ st.set_page_config(page_title="Shunt Sound Analyzer - 完全版", layout="wide")
 
 # ---- UI小道具 ----
 def explain_button(title: str, body_md: str):
-    with st.expander(f"ℹ️ {title} の説明"):
+    with st.expander(f"\u2139\ufe0f {title} の説明"):
         st.markdown(body_md)
 
 # ---- DSP utils ----
@@ -64,21 +64,15 @@ def calculate_hlpr(x, fs, high_band=(500, 700), low_band=(100, 250), order=4):
 def calculate_hlpr_fft(x, fs, low_band=(100, 250), high_band=(500, 700)):
     freqs = np.fft.rfftfreq(len(x), d=1/fs)
     fft_spectrum = np.abs(np.fft.rfft(x))
-
     idx_low = np.where((freqs >= low_band[0]) & (freqs <= low_band[1]))
     idx_high = np.where((freqs >= high_band[0]) & (freqs <= high_band[1]))
-
     low_peak = np.max(fft_spectrum[idx_low])
     high_peak = np.max(fft_spectrum[idx_high])
     hlpr_fft = high_peak / (low_peak + 1e-9)
-
     return hlpr_fft, freqs, fft_spectrum, low_peak, high_peak
 
 # ---- サイドバー ----
 with st.sidebar:
-    st.header("1) 音声の読み込み")
-    up = st.file_uploader("WAV/MP3/FLAC/OGG/M4A", type=["wav","mp3","flac","ogg","m4a"])
-
     st.header("2) 前処理")
     target_sr = st.selectbox("解析サンプリング周波数", [2000, 4000, 8000, 16000], index=2)
     use_notch = st.checkbox("ノッチ除去（商用電源）", value=True)
@@ -87,14 +81,29 @@ with st.sidebar:
     bp_low = st.number_input("バンドパス下限 [Hz]", 0.0, 5000.0, 20.0, 10.0)
     bp_high = st.number_input("バンドパス上限 [Hz]", 50.0, 20000.0, 1200.0, 50.0)
     bp_order = st.slider("バンドパス次数", 2, 8, 4)
-
     st.header("3) 出力")
     export_csv = st.checkbox("CSV出力（スペクトル特徴量）", value=True)
 
 # ---- メイン ----
 st.title("シャント音 解析ビューア（STFT/PSD/HLPR/FFT）")
+
+st.subheader("基本情報の入力")
+col1, col2 = st.columns(2)
+with col1:
+    shunt_type = st.multiselect("シャント種別を選択してください", ["AVG", "AVF"])
+    gender = st.radio("性別", ["男", "女"], horizontal=True)
+with col2:
+    location = st.radio("測定部位", ["吻合部", "その他"], horizontal=True)
+    if location == "その他":
+        location_comment = st.text_input("測定部位の詳細を入力してください")
+    else:
+        location_comment = ""
+
+st.subheader("音声ファイルのアップロード")
+up = st.file_uploader("ここに音声ファイルをアップロードしてください（WAV/MP3/FLAC/OGG/M4A）", type=["wav", "mp3", "flac", "ogg", "m4a"])
+
 if up is None:
-    st.info("左のサイドバーから音声ファイルをアップロードしてください。")
+    st.warning("音声ファイルが未アップロードです。アップロードしてください。")
     st.stop()
 
 TMP_DIR = Path(tempfile.gettempdir())
@@ -109,18 +118,17 @@ y_raw, sr_raw = load_audio(tmp_input)
 if sr_raw != target_sr:
     from math import gcd
     g = gcd(sr_raw, target_sr)
-    y = resample_poly(y_raw, target_sr//g, sr_raw//g)
+    y = resample_poly(y_raw, target_sr // g, sr_raw // g)
     sr = target_sr
 else:
     y = y_raw.copy()
     sr = sr_raw
 
-t = np.arange(len(y))/sr
+t = np.arange(len(y)) / sr
 x_proc = y.copy()
 if use_notch:
     x_proc = apply_notch(x_proc, sr, freq=float(notch_freq), q=float(notch_q))
 x_proc = apply_bandpass(x_proc, sr, bp_low, bp_high, order=bp_order)
-
 # ---- 時間波形 ----
 st.subheader("時間波形")
 fig, ax = plt.subplots(figsize=(11,3))
@@ -272,5 +280,6 @@ explain_button("各特徴量とは？（シャント評価）",
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
 
 
