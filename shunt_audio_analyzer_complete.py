@@ -231,7 +231,7 @@ feat = {
     "rms_energy": float(np.mean(rms)),
     "spectral_flatness": float(np.mean(sflat)),
     "HLPR_hilbert": float(hlpr),
-    "HLPR_fft": float(hlpr_fft)
+    "HLPR_fft": float(hlpr_fft),
     "FV_mL_min": fv,
     "TAV_cm_s": tav,
     "PSV_cm_s": psv,
@@ -272,4 +272,5 @@ explain_button("各特徴量とは？（シャント評価）",
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
 
