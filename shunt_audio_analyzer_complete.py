@@ -196,6 +196,26 @@ cb2.set_label("Power [dB]")
 st.pyplot(fig_log)
 plt.close(fig_log)
 
+# ---- シャント機能評価 入力フォーム ----
+st.subheader("シャント評価パラメータの入力")
+
+fv = st.number_input("FV（血流量 mL/min）", min_value=0.0, value=0.0)
+tav = st.number_input("TAV（平均流速 cm/s）", min_value=0.0, value=0.0)
+psv = st.number_input("PSV（収縮期最大流速 cm/s）", min_value=0.0, value=0.0)
+edv = st.number_input("EDV（拡張期最小流速 cm/s）", min_value=0.0, value=0.0)
+ri = st.number_input("RI（抵抗指数）", min_value=0.0, max_value=1.0, value=0.0, step=0.01)
+pi = st.number_input("PI（脈波指数）", min_value=0.0, value=0.0)
+
+st.subheader("備考欄（狭窄の有無）")
+
+stenosis_flag = st.radio("狭窄の有無を教えてください", ["いいえ", "はい"], horizontal=True)
+
+if stenosis_flag == "はい":
+    stenosis_location = st.text_input("狭窄部位を入力してください")
+else:
+    stenosis_location = ""
+
+
 # ---- 特徴量 ----
 spec_cent = librosa.feature.spectral_centroid(y=x_proc, sr=sr)[0]
 spec_bw = librosa.feature.spectral_bandwidth(y=x_proc, sr=sr)[0]
@@ -212,6 +232,14 @@ feat = {
     "spectral_flatness": float(np.mean(sflat)),
     "HLPR_hilbert": float(hlpr),
     "HLPR_fft": float(hlpr_fft)
+    "FV_mL_min": fv,
+    "TAV_cm_s": tav,
+    "PSV_cm_s": psv,
+    "EDV_cm_s": edv,
+    "RI": ri,
+    "PI": pi,
+    "stenosis_flag": stenosis_flag,
+    "stenosis_location": stenosis_location
 }
 st.subheader("簡易スペクトル特徴量（+HLPR）")
 explain_button("各特徴量とは？（シャント評価）", 
@@ -244,3 +272,4 @@ explain_button("各特徴量とは？（シャント評価）",
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
