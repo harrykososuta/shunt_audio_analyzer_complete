@@ -221,23 +221,36 @@ def analyze_audio(x_proc, sr, label="ファイル1"):
 # ==== 解析実行と比較結果表示 ====
 results = []
 
-# 音声ファイル1の解析
+# 音声ファイル1を読み込み＆前処理
 y1, sr1 = load_audio_file(up1, label="1")
 x1, _ = preprocess_audio(y1, sr1)
-res1 = analyze_audio(x1, sr1, label="音声ファイル1")
-results.append(res1)
 
-# 音声ファイル2（任意）
+# 音声ファイル2があるかどうかで処理分岐
 if up2:
+    # 音声ファイル2も読み込み＆前処理
     y2, sr2 = load_audio_file(up2, label="2")
     x2, _ = preprocess_audio(y2, sr2)
-    res2 = analyze_audio(x2, sr2, label="音声ファイル2")
-    results.append(res2)
 
-    # 差分表示
+    # 横並びレイアウト（2カラム）
+    col1, col2 = st.columns(2)
+
+    with col1:
+        res1 = analyze_audio(x1, sr1, label="音声ファイル1")
+        results.append(res1)
+
+    with col2:
+        res2 = analyze_audio(x2, sr2, label="音声ファイル2")
+        results.append(res2)
+
+    # 差分表示（中央に）
     st.subheader("HLPR 差分比較")
     st.metric("HLPR Hilbert 差", f"{res1['HLPR_hilbert'] - res2['HLPR_hilbert']:.3f}")
     st.metric("HLPR FFT 差", f"{res1['HLPR_fft'] - res2['HLPR_fft']:.3f}")
+
+else:
+    # ファイル1だけ → 通常表示
+    res1 = analyze_audio(x1, sr1, label="音声ファイル1")
+    results.append(res1)
 
 # ---- シャント機能評価 入力フォーム ----
 st.subheader("シャント評価パラメータの入力")
@@ -348,4 +361,5 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
