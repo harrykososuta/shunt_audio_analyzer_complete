@@ -87,23 +87,26 @@ with st.sidebar:
 # ---- メイン ----
 st.title("シャント音 解析ビューア（STFT/PSD/HLPR/FFT）")
 
+# === 基本情報入力 ===
 st.subheader("基本情報の入力")
-col1, col2 = st.columns(2)
-with col1:
-    shunt_type = st.multiselect("シャント種別を選択してください", ["AVG", "AVF"])
-    gender = st.radio("性別", ["男", "女"], horizontal=True)
-with col2:
-    location = st.radio("測定部位", ["吻合部", "その他"], horizontal=True)
-    if location == "その他":
-        location_comment = st.text_input("測定部位の詳細を入力してください")
-    else:
-        location_comment = ""
 
+col1, col2 = st.columns(2)
+
+with col1:
+    shunt_type = st.radio("シャントの種類", ["AVG", "AVF"], horizontal=True)
+    sex = st.radio("性別", ["男性", "女性"], horizontal=True)
+
+with col2:
+    site = st.radio("測定場所", ["吻合部", "その他"], horizontal=True)
+    site_comment = ""
+    if site == "その他":
+        site_comment = st.text_input("その他の測定場所を入力してください")
+
+# === 音声ファイルアップロード ===
 st.subheader("音声ファイルのアップロード")
 up = st.file_uploader("ここに音声ファイルをアップロードしてください（WAV/MP3/FLAC/OGG/M4A）", type=["wav", "mp3", "flac", "ogg", "m4a"])
-
 if up is None:
-    st.warning("音声ファイルが未アップロードです。アップロードしてください。")
+    st.info("ここに音声ファイルをアップロードしてください。")
     st.stop()
 
 TMP_DIR = Path(tempfile.gettempdir())
@@ -207,12 +210,15 @@ plt.close(fig_log)
 # ---- シャント機能評価 入力フォーム ----
 st.subheader("シャント評価パラメータの入力")
 
-fv = st.number_input("FV（血流量 mL/min）", min_value=0.0, value=0.0)
-tav = st.number_input("TAV（平均流速 cm/s）", min_value=0.0, value=0.0)
-psv = st.number_input("PSV（収縮期最大流速 cm/s）", min_value=0.0, value=0.0)
-edv = st.number_input("EDV（拡張期最小流速 cm/s）", min_value=0.0, value=0.0)
-ri = st.number_input("RI（抵抗指数）", min_value=0.0, max_value=1.0, value=0.0, step=0.01)
-pi = st.number_input("PI（脈波指数）", min_value=0.0, value=0.0)
+col1, col2 = st.columns(2)
+with col1:
+    fv = st.number_input("FV（血流量 mL/min）", min_value=0.0, value=0.0)
+    psv = st.number_input("PSV（収縮期最大流速 cm/s）", min_value=0.0, value=0.0)
+    ri = st.number_input("RI（抵抗指数）", min_value=0.0, max_value=1.0, value=0.0, step=0.01)
+with col2:
+    tav = st.number_input("TAV（平均流速 cm/s）", min_value=0.0, value=0.0)
+    edv = st.number_input("EDV（拡張期最小流速 cm/s）", min_value=0.0, value=0.0)
+    pi = st.number_input("PI（脈波指数）", min_value=0.0, value=0.0)
 
 st.subheader("備考欄（狭窄の有無）")
 
@@ -284,6 +290,7 @@ explain_button("各特徴量とは？（シャント評価）",
 st.dataframe(pd.DataFrame([feat]), use_container_width=True)
 if export_csv:
     st.download_button("CSVダウンロード", data=pd.DataFrame([feat]).to_csv(index=False).encode("utf-8"), file_name="features_hlpr.csv")
+
 
 
 
