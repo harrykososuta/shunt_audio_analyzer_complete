@@ -412,10 +412,11 @@ if export_csv and results:
     # CSVダウンロードボタン
     st.download_button(
         label="CSVをダウンロード",
-        data=df_csv.to_csv(index=False).encode("utf-8"),
+        data=df_csv.to_csv(index=False).encode("utf-8-sig"),
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
