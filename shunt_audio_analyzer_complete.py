@@ -178,18 +178,8 @@ def analyze_audio(x_proc, sr, label="ファイル1"):
     results["fft_high_peak"] = hpk
     results["fft_low_peak"] = lpk
 
-    # ---- HLPR_fft 評価テキスト表示 ----
-    st.markdown("### ⚠️ HLPR_fft 評価")
-
-    if hlpr_fft < 0.20:
-        st.success("**低周波成分が主体のシャント音です。**\n\n従来報告されている“良好なシャント音”に近いパターンです（参考値）。")
-    elif hlpr_fft < 0.35:
-        st.info("**低周波が主体ですが、いくらか高周波成分も含まれています。**\n\nこの値だけでは狭窄の有無は判断できません。")
-    else:
-        st.warning("**高周波成分がやや多いシャント音パターンです。**\n\n先行研究では、このようなパターンで血流の乱れや狭窄がみられる例が報告されています。")
-
-    st.markdown("---")  # 区切り線
-
+    # ---- HLPR_fft 表示 ----
+    st.markdown(f"**HLPR_fft 値：{hlpr_fft:.3f}**")
 
     # ---------- STFT Linear ----------
     st.subheader(f"{label} - STFTスペクトログラム（Linear）")
@@ -447,6 +437,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
