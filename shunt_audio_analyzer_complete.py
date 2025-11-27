@@ -317,13 +317,13 @@ hlpr_fft_main = results[0]["HLPR_fft"]  # ファイル1のHLPR_fftを使用（�
 
 if hlpr_fft_main < 0.20:
     st.markdown('<span style="color:green; font-weight:bold;">評価: Low（HLPR_fft < 0.20）</span>', unsafe_allow_html=True)
-    st.success("低周波優位なシャント音パターンです。")
+    st.success("低周波優位なシャント音パターンです。シャント機能は正常だと考えます")
 elif hlpr_fft_main < 0.35:
     st.markdown('<span style="color:gray; font-weight:bold;">評価: Middle（0.20 ≦ HLPR_fft < 0.35）</span>', unsafe_allow_html=True)
-    st.info("低周波主体ですが高周波成分も一部含まれます。")
+    st.info("低周波主体ですが高周波成分も一部含まれます。狭窄がある可能性は低いです")
 else:
     st.markdown('<span style="color:orange; font-weight:bold;">評価: High（HLPR_fft ≧ 0.35, 要注意）</span>', unsafe_allow_html=True)
-    st.warning("高周波成分が多めであり、血流異常の可能性が示唆されます。")
+    st.warning("高周波成分が多めであり、狭窄がある可能性が高いです")
 
 # 注意文
 st.caption("⚠️ ただし、この結果“だけ”で狭窄の有無を診断することはできません。触診・聴診・超音波検査などと合わせて評価してください。")
@@ -437,6 +437,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
