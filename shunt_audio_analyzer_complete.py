@@ -178,8 +178,8 @@ def analyze_audio(x_proc, sr, label="ファイル1"):
     results["fft_high_peak"] = hpk
     results["fft_low_peak"] = lpk
 
-    # ---- HLPR_fft 表示 ----
-    st.markdown(f"**HLPR_fft 値：{hlpr_fft:.3f}**")
+    # ---------- HLPR_fft 数値を大きく表示 ----------
+    st.metric(f"{label} HLPR値（FFTスペクトル）", f"{hlpr_fft:.3f}")
 
     # ---------- STFT Linear ----------
     st.subheader(f"{label} - STFTスペクトログラム（Linear）")
@@ -437,6 +437,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
