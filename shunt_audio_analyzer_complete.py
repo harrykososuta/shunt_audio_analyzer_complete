@@ -178,6 +178,19 @@ def analyze_audio(x_proc, sr, label="ファイル1"):
     results["fft_high_peak"] = hpk
     results["fft_low_peak"] = lpk
 
+    # ---- HLPR_fft 評価テキスト表示 ----
+    st.markdown("### ⚠️ HLPR_fft 評価")
+
+    if hlpr_fft < 0.20:
+        st.success("**低周波成分が主体のシャント音です。**\n\n従来報告されている“良好なシャント音”に近いパターンです（参考値）。")
+    elif hlpr_fft < 0.35:
+        st.info("**低周波が主体ですが、いくらか高周波成分も含まれています。**\n\nこの値だけでは狭窄の有無は判断できません。")
+    else:
+        st.warning("**高周波成分がやや多いシャント音パターンです。**\n\n先行研究では、このようなパターンで血流の乱れや狭窄がみられる例が報告されています。")
+
+    st.markdown("---")  # 区切り線
+
+
     # ---------- STFT Linear ----------
     st.subheader(f"{label} - STFTスペクトログラム（Linear）")
     F_stft, TT_stft, S_stft = compute_stft(x_proc, sr)
@@ -307,6 +320,24 @@ if up2:
         flatness_pct = flatness_diff / res1["spectral_flatness"] * 100 if res1["spectral_flatness"] else 0
         st.metric("スペクトル平坦度 差", f"{flatness_diff:.3f}", delta=f"{flatness_pct:.1f} %")
 
+# ---- HLPR_fft カテゴリ評価と注意表示 ----
+st.subheader("📊 HLPR_fft によるシャント評価")
+
+hlpr_fft_main = results[0]["HLPR_fft"]  # ファイル1のHLPR_fftを使用（必要なら平均値などに変更可）
+
+if hlpr_fft_main < 0.20:
+    st.markdown('<span style="color:green; font-weight:bold;">評価: Low（HLPR_fft < 0.20）</span>', unsafe_allow_html=True)
+    st.success("低周波優位なシャント音パターンです。")
+elif hlpr_fft_main < 0.35:
+    st.markdown('<span style="color:gray; font-weight:bold;">評価: Middle（0.20 ≦ HLPR_fft < 0.35）</span>', unsafe_allow_html=True)
+    st.info("低周波主体ですが高周波成分も一部含まれます。")
+else:
+    st.markdown('<span style="color:orange; font-weight:bold;">評価: High（HLPR_fft ≧ 0.35, 要注意）</span>', unsafe_allow_html=True)
+    st.warning("高周波成分が多めであり、血流異常の可能性が示唆されます。")
+
+# 注意文
+st.caption("⚠️ ただし、この結果“だけ”で狭窄の有無を診断することはできません。触診・聴診・超音波検査などと合わせて評価してください。")
+
 
 # ---- シャント機能評価 入力フォーム ----
 st.subheader("シャント評価パラメータの入力")
@@ -416,6 +447,7 @@ if export_csv and results:
         file_name=file_name,
         mime="text/csv"
     )
+
 
 
 
